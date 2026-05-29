@@ -1,0 +1,21 @@
+{
+  "name": "career-ops-web-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/build-data.mjs",
+    "dev": "node scripts/build-data.mjs && node scripts/local-server.mjs",
+    "prebuild": "node scripts/build-data.mjs",
+    "build": "vite build",
+    "preview": "node scripts/local-server.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^6.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "lucide-react": "^0.468.0"
+  },
+  "devDependencies": {}
+}

@@ -3,6 +3,7 @@ cv.md
 data/applications.md
 data/pipeline.md
 data/scan-history.tsv
+data/archive/
 data/parser-output/**/*.json
 !data/parser-output/.gitkeep
 !data/parser-output/**/.gitkeep
@@ -47,4 +48,10 @@ bun.lock
 .claude/settings.local.json
 .claude/memory/
 career-dashboard
+dashboard/*.exe
+web-dashboard-dev.log
+web-dashboard/dist/
+web-dashboard/public/career-data.json
+web-dashboard/public/reports/
+web-dashboard/public/application-packages/
 package-lock.json

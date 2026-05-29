@@ -33,6 +33,7 @@ import path from 'path';
 import yaml from 'js-yaml';
 
 import { makeHttpCtx } from './providers/_http.mjs';
+import { repairText } from './utils/text.mjs';
 
 const parseYaml = yaml.load;
 
@@ -237,7 +238,7 @@ function appendToPipeline(offers) {
     const procIdx = text.indexOf('## Procesadas');
     const insertAt = procIdx === -1 ? text.length : procIdx;
     const block = `\n${marker}\n\n` + offers.map(o =>
-      `- [ ] ${o.url} | ${o.company} | ${o.title}`
+      `- [ ] ${o.url} | ${repairText(o.company)} | ${repairText(o.title)}`
     ).join('\n') + '\n\n';
     text = text.slice(0, insertAt) + block + text.slice(insertAt);
   } else {
@@ -247,7 +248,7 @@ function appendToPipeline(offers) {
     const insertAt = nextSection === -1 ? text.length : nextSection;
 
     const block = '\n' + offers.map(o =>
-      `- [ ] ${o.url} | ${o.company} | ${o.title}`
+      `- [ ] ${o.url} | ${repairText(o.company)} | ${repairText(o.title)}`
     ).join('\n') + '\n';
     text = text.slice(0, insertAt) + block + text.slice(insertAt);
   }
@@ -266,7 +267,7 @@ function appendToScanHistory(offers, date, status = 'added') {
   }
 
   const lines = offers.map(o =>
-    `${o.url}\t${date}\t${o.source}\t${o.title}\t${o.company}\t${status}\t${o.location || ''}`
+    `${o.url}\t${date}\t${o.source}\t${repairText(o.title)}\t${repairText(o.company)}\t${status}\t${repairText(o.location || '')}`
   ).join('\n') + '\n';
 
   appendFileSync(SCAN_HISTORY_PATH, lines, 'utf-8');
@@ -374,8 +375,8 @@ function guardStatusFor(code) {
   return 'skipped_invalid_url';
 }
 
-async function main() {
-  const args = process.argv.slice(2);
+export async function main(argsOverride = null) {
+  const args = argsOverride || process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const verify = args.includes('--verify');
   const companyFlag = args.indexOf('--company');

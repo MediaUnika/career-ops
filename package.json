@@ -16,7 +16,9 @@
     "liveness": "node check-liveness.mjs",
     "scan": "node scan.mjs",
     "patterns": "node analyze-patterns.mjs",
-    "gemini:eval": "node gemini-eval.mjs"
+    "gemini:eval": "node gemini-eval.mjs",
+    "web": "npm --prefix web-dashboard run dev -- --port 5177",
+    "web:build": "npm --prefix web-dashboard run build"
   },
   "keywords": [
     "ai",
