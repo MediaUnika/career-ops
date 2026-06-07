@@ -104,6 +104,219 @@ select {
   padding: 28px;
 }
 
+.briefWorkspace {
+  display: grid;
+  gap: 18px;
+}
+
+.briefHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.42fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.briefHero > div:first-child {
+  min-height: 176px;
+  display: grid;
+  align-content: end;
+  padding: 28px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(23, 68, 58, 0.08), transparent 44%),
+    rgba(255, 253, 247, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.briefCallout {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 28px;
+  border: 1px solid var(--pine);
+  background: var(--pine);
+  color: var(--paper);
+}
+
+.briefCallout span {
+  color: rgba(247, 245, 239, 0.74);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.briefCallout strong {
+  font-size: clamp(1.4rem, 2vw, 2.15rem);
+  line-height: 1.05;
+}
+
+.briefMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.briefGrid {
+  display: grid;
+  grid-template-columns: minmax(520px, 1.35fr) minmax(320px, 0.85fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.briefPanel {
+  padding: 22px;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 247, 0.9);
+  box-shadow: var(--shadow);
+}
+
+.focusPanel {
+  grid-row: span 2;
+}
+
+.panelHead {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.panelHead h2 {
+  margin-bottom: 0;
+}
+
+.panelHead button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--pine);
+  background: transparent;
+  color: var(--pine);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.focusTable {
+  display: grid;
+}
+
+.focusRow {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 78px 112px;
+  gap: 12px;
+  align-items: center;
+  min-height: 76px;
+  border-top: 1px solid var(--line);
+}
+
+.focusRow:first-child {
+  border-top: 0;
+}
+
+.focusRow div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.focusRow strong,
+.focusRow span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  background: var(--ice);
+  color: var(--pine);
+  font-weight: 850;
+}
+
+.fit,
+.queueAction {
+  padding: 7px 9px;
+  border: 1px solid currentColor;
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.queueAction {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.coverageBars {
+  display: grid;
+  gap: 18px;
+}
+
+.coverageBar {
+  display: grid;
+  gap: 8px;
+}
+
+.coverageBar > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.coverageBar span {
+  color: var(--muted);
+}
+
+.coverageBar strong {
+  color: var(--ink);
+}
+
+.barTrack {
+  height: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.barTrack span {
+  display: block;
+  height: 100%;
+  background: var(--pine);
+}
+
+.readyList {
+  display: grid;
+  gap: 10px;
+}
+
+.readyRow {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.readyRow div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.readyRow strong,
+.readyRow span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .topbar {
   display: flex;
   align-items: end;
@@ -979,12 +1192,15 @@ select {
   }
 
   .topbar,
-  .controls {
+  .controls,
+  .briefHero {
     align-items: stretch;
-    flex-direction: column;
   }
 
   .metrics,
+  .briefMetrics,
+  .briefHero,
+  .briefGrid,
   .contentGrid,
   .packageGrid,
   .targetGrid,
@@ -1018,6 +1234,16 @@ select {
 
   .status {
     grid-column: 2;
+    justify-self: start;
+  }
+
+  .focusRow {
+    grid-template-columns: 32px minmax(0, 1fr);
+    padding: 12px 0;
+  }
+
+  .fit,
+  .queueAction {
     justify-self: start;
   }
 }

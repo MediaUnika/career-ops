@@ -208,7 +208,7 @@ function readSources() {
   const tracked = (config.tracked_companies || []).map((entry) => ({
     type: "tracked",
     name: repairText(entry.name || entry.careers_url || entry.provider || "Unnamed source"),
-    provider: repairText(entry.provider || "auto"),
+    provider: repairText(entry.provider || entry.scan_method || "auto"),
     enabled: entry.enabled !== false,
     url: entry.careers_url || "",
     queries: (entry.queries || []).map(repairText),

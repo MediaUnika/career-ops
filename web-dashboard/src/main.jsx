@@ -41,7 +41,7 @@ function compactUrl(url) {
 
 function App() {
   const [data, setData] = useState({ summary: {}, applications: [], discovered: [], packages: [], sources: { tracked: [], searches: [] } });
-  const [section, setSection] = useState("sources");
+  const [section, setSection] = useState("brief");
   const [mode, setMode] = useState("evaluated");
   const [query, setQuery] = useState("");
   const [band, setBand] = useState("all");
@@ -143,6 +143,9 @@ function App() {
           </div>
         </div>
         <nav className="railNav" aria-label="Dashboard sections">
+          <button className={section === "brief" ? "active" : ""} title="Brief" onClick={() => setSection("brief")}>
+            <Gauge size={18} />
+          </button>
           <button className={section === "sources" ? "active" : ""} title="Sources" onClick={() => setSection("sources")}>
             <RefreshCw size={18} />
           </button>
@@ -160,6 +163,8 @@ function App() {
 
       {section === "sources" ? (
         <SourcesWorkspace data={data} onDataReload={loadData} />
+      ) : section === "brief" ? (
+        <BriefWorkspace data={data} setSection={setSection} />
       ) : section === "packages" ? (
         <PackageWorkspace data={data} onApplied={markAppliedInState} />
       ) : section === "targets" ? (
@@ -262,6 +267,144 @@ function App() {
       </section>
       )}
     </main>
+  );
+}
+
+function actionFor(app, packagedNumbers) {
+  if (!app) return "Review";
+  if (app.status === "Applied") return "Follow up";
+  if (packagedNumbers.has(app.number) || app.isPackaged) return "Apply review";
+  if ((app.score || 0) >= 4) return "Package";
+  if ((app.score || 0) >= 3.6) return "Second pass";
+  return "Archive";
+}
+
+function fitLabel(score) {
+  if (score >= 4.5) return "Prime";
+  if (score >= 4) return "Strong";
+  if (score >= 3.6) return "Maybe";
+  return "Weak";
+}
+
+function BriefWorkspace({ data, setSection }) {
+  const packagedNumbers = useMemo(() => new Set((data.packages || []).map((pkg) => pkg.number).filter(Boolean)), [data.packages]);
+  const applications = data.applications || [];
+  const readyPackages = (data.packages || []).filter((pkg) => pkg.status !== "Applied");
+  const focusQueue = useMemo(() => {
+    return applications
+      .filter((app) => app.status !== "Applied" && app.status !== "SKIP" && app.status !== "Discarded")
+      .sort((a, b) => {
+        const actionRank = { Package: 0, "Apply review": 1, "Second pass": 2, Archive: 3, Review: 4 };
+        return (actionRank[actionFor(a, packagedNumbers)] ?? 9) - (actionRank[actionFor(b, packagedNumbers)] ?? 9) || b.score - a.score;
+      })
+      .slice(0, 6);
+  }, [applications, packagedNumbers]);
+  const sourceRows = [...(data.sources?.tracked || []), ...(data.sources?.searches || [])];
+  const parsedSources = sourceRows.filter((source) => /ashby|greenhouse|lever|thehub|platsbanken/i.test(`${source.provider} ${source.url}`)).length;
+  const searchSources = sourceRows.filter((source) => source.type === "search" || /search/i.test(source.provider || "")).length;
+  const manualSources = Math.max(0, sourceRows.length - parsedSources - searchSources);
+  const strongUnpackaged = applications.filter((app) => (app.score || 0) >= 4 && !packagedNumbers.has(app.number)).length;
+  const applied = applications.filter((app) => app.status === "Applied").length;
+  const conversion = applications.length ? Math.round((applied / applications.length) * 100) : 0;
+
+  return (
+    <section className="workspace briefWorkspace">
+      <header className="briefHero">
+        <div>
+          <p className="kicker">Hunt brief</p>
+          <h1>Uri job engine</h1>
+        </div>
+        <div className="briefCallout">
+          <span>Next best move</span>
+          <strong>{readyPackages.length ? "Review package and apply" : strongUnpackaged ? "Generate application package" : "Evaluate discovered leads"}</strong>
+        </div>
+      </header>
+
+      <section className="briefMetrics" aria-label="Hunt metrics">
+        <Metric icon={<Target />} label="Strong roles" value={applications.filter((app) => (app.score || 0) >= 4).length} />
+        <Metric icon={<FileText />} label="Ready packages" value={readyPackages.length} />
+        <Metric icon={<LayoutList />} label="Live sources" value={data.sources?.enabled || 0} />
+        <Metric icon={<CheckCircle2 />} label="Applied rate" value={`${conversion}%`} />
+      </section>
+
+      <div className="briefGrid">
+        <section className="briefPanel focusPanel">
+          <div className="panelHead">
+            <div>
+              <p className="kicker">Priority queue</p>
+              <h2>Best moves</h2>
+            </div>
+            <button onClick={() => setSection("pipeline")}>Open pipeline</button>
+          </div>
+          <div className="focusTable">
+            {focusQueue.map((app, index) => (
+              <div key={app.number} className="focusRow">
+                <span className="rank">{index + 1}</span>
+                <div>
+                  <strong>{app.company}</strong>
+                  <span>{app.role}</span>
+                </div>
+                <span className={`fit ${scoreTone(app.score)}`}>{fitLabel(app.score)}</span>
+                <span className="queueAction">{actionFor(app, packagedNumbers)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="briefPanel">
+          <div className="panelHead">
+            <div>
+              <p className="kicker">Source quality</p>
+              <h2>Coverage</h2>
+            </div>
+            <button onClick={() => setSection("sources")}>Open sources</button>
+          </div>
+          <div className="coverageBars">
+            <CoverageBar label="Parsed sources" value={parsedSources} total={sourceRows.length} />
+            <CoverageBar label="Search-led sources" value={searchSources} total={sourceRows.length} />
+            <CoverageBar label="Manual watchlist" value={manualSources} total={sourceRows.length} />
+            <CoverageBar label="Real discovered leads" value={data.summary?.discoveredTotal || 0} total={Math.max(1, data.summary?.rawLeadTotal || 1)} />
+          </div>
+        </section>
+
+        <section className="briefPanel">
+          <div className="panelHead">
+            <div>
+              <p className="kicker">Application room</p>
+              <h2>Ready now</h2>
+            </div>
+            <button onClick={() => setSection("packages")}>Open packages</button>
+          </div>
+          <div className="readyList">
+            {readyPackages.slice(0, 4).map((pkg) => (
+              <div key={pkg.id} className="readyRow">
+                <span className={`score ${scoreTone(pkg.score)}`}>{Number(pkg.score || 0).toFixed(1)}</span>
+                <div>
+                  <strong>{pkg.company}</strong>
+                  <span>{pkg.role}</span>
+                </div>
+              </div>
+            ))}
+            {readyPackages.length === 0 && <div className="emptyInline">No packages waiting.</div>}
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function CoverageBar({ label, value, total }) {
+  const pct = total ? Math.min(100, Math.round((value / total) * 100)) : 0;
+  return (
+    <div className="coverageBar">
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+      <div className="barTrack">
+        <span style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   );
 }
 
