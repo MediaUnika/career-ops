@@ -3,11 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
+import yaml from "js-yaml";
+import { generatePackage } from "./web-dashboard/scripts/generate-package.mjs";
 
 const root = import.meta.dirname;
 const applicationsPath = path.join(root, "data", "applications.md");
+const profilePath = path.join(root, "config", "profile.yml");
 const profileDir = path.join(root, ".playwright-apply-profile");
 const packagesDir = path.join(root, "output", "application-packages");
+const outputDir = path.join(root, "output");
 
 function usage() {
   console.log(`Usage:
@@ -71,6 +75,29 @@ function loadReport(reportPath) {
     strategy: reportSection(markdown, "C) Level and Strategy"),
     answers: reportSection(markdown, "H) Draft Application Answers"),
   };
+}
+
+function loadProfile() {
+  if (!fs.existsSync(profilePath)) return {};
+  return yaml.load(fs.readFileSync(profilePath, "utf8")) || {};
+}
+
+function findResumePdf() {
+  if (!fs.existsSync(outputDir)) return "";
+  const files = fs.readdirSync(outputDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.pdf$/i.test(entry.name))
+    .map((entry) => path.join(outputDir, entry.name))
+    .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+  return files[0] || "";
+}
+
+async function ensurePackage(app) {
+  let pkg = findPackage(app);
+  if (!pkg && app?.number) {
+    await generatePackage(app.number);
+    pkg = findPackage(app);
+  }
+  return pkg;
 }
 
 function findPackage(app) {
@@ -165,7 +192,15 @@ async function detectLoginGate(page) {
 }
 
 async function clickSafeApplyEntry(page, context) {
+  const url = page.url();
+  if (/jobs\.ashbyhq\.com\/[^/]+\/[^/]+$/i.test(url)) {
+    await page.goto(`${url.replace(/\/$/, "")}/application`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.bringToFront().catch(() => {});
+    return { status: "form-ready", message: "Opened the Ashby application form directly. Stopping before final submit." };
+  }
+
   if (await pageHasApplicationForm(page)) {
+    await page.bringToFront().catch(() => {});
     return { status: "form-ready", message: "Application form is already visible. Stopping before final submit." };
   }
 
@@ -201,9 +236,49 @@ async function clickSafeApplyEntry(page, context) {
   }
 
   if (await detectLoginGate(page)) {
+    await page.bringToFront().catch(() => {});
     return { status: "login-needed", message: "Login or account gate detected. Log in interactively, then continue in the browser." };
   }
+  await page.bringToFront().catch(() => {});
   return { status: "no-apply-found", message: "No safe Apply entry point found. Use the open posting to choose the right application link." };
+}
+
+async function fillIfEmpty(locator, value) {
+  if (!value) return false;
+  const count = await locator.count().catch(() => 0);
+  if (!count) return false;
+  const target = locator.first();
+  const current = await target.inputValue().catch(() => "");
+  if (current) return false;
+  await target.fill(value, { timeout: 5000 }).catch(() => {});
+  return true;
+}
+
+async function safeAutofill(page, profile) {
+  const candidate = profile.candidate || {};
+  const resumePdf = findResumePdf();
+  const filled = [];
+
+  if (await fillIfEmpty(page.locator('input[name="_systemfield_name"], input#_systemfield_name'), candidate.full_name)) filled.push("name");
+  if (await fillIfEmpty(page.locator('input[name="_systemfield_email"], input#_systemfield_email'), candidate.email)) filled.push("email");
+  if (await fillIfEmpty(page.locator('input[type="url"]').filter({ hasNotText: /./ }), candidate.linkedin)) filled.push("LinkedIn");
+  if (await fillIfEmpty(page.getByLabel(/linkedin profile/i), candidate.linkedin)) {
+    if (!filled.includes("LinkedIn")) filled.push("LinkedIn");
+  }
+
+  const locationInput = page.locator('input[placeholder*="Start typing"], input[aria-autocomplete="list"]').first();
+  if (await fillIfEmpty(locationInput, candidate.location)) filled.push("location");
+
+  if (resumePdf) {
+    const resumeInput = page.locator('input[type="file"]#_systemfield_resume, input[type="file"]').nth(1);
+    const count = await resumeInput.count().catch(() => 0);
+    if (count) {
+      await resumeInput.setInputFiles(resumePdf).catch(() => {});
+      filled.push("resume PDF");
+    }
+  }
+
+  return { filled, resumePdf };
 }
 
 function resolveTarget(args) {
@@ -259,15 +334,19 @@ async function main() {
     headless: false,
     viewport: { width: 1440, height: 1000 },
   });
-  const pkg = findPackage(target.app);
+  const profile = loadProfile();
+  const pkg = await ensurePackage(target.app);
   const briefPath = createBriefPage(target, pkg);
   const briefPage = browser.pages()[0] || await browser.newPage();
   await briefPage.goto(pathToFileURL(briefPath).href, { waitUntil: "domcontentloaded" });
   const page = await browser.newPage();
   await page.goto(target.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
   const advance = await clickSafeApplyEntry(page, browser);
+  const autofill = await safeAutofill(page, profile);
+  await page.bringToFront().catch(() => {});
   console.log(`\nBrowser opened: ${await page.title()}`);
   console.log(`Apply assistant: ${advance.status} - ${advance.message}`);
+  console.log(`Safe autofill: ${autofill.filled.length ? autofill.filled.join(", ") : "nothing filled"}`);
   if (pkg?.files?.length) {
     console.log(`Package files opened in assistant brief: ${pkg.dir}`);
   }
