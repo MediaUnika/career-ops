@@ -594,6 +594,7 @@ function PackageWorkspace({ data, onApplied }) {
   const [original, setOriginal] = useState("");
   const [saveState, setSaveState] = useState("idle");
   const [applyState, setApplyState] = useState("idle");
+  const [assistantState, setAssistantState] = useState({ status: "idle", message: "" });
 
   const readyPackages = useMemo(() => data.packages.filter((pkg) => pkg.status !== "Applied"), [data.packages]);
 
@@ -684,6 +685,26 @@ function PackageWorkspace({ data, onApplied }) {
     }
   }
 
+  async function startApply() {
+    if (!selectedPackage?.number) return;
+    setAssistantState({ status: "loading", message: "Starting Playwright assistant..." });
+    try {
+      const response = await fetch("/api/start-apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: selectedPackage.number }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not start apply assistant");
+      setAssistantState({
+        status: "done",
+        message: `${result.message} Review materials here, use the browser to fill, then stop before final submit.`,
+      });
+    } catch (error) {
+      setAssistantState({ status: "error", message: error.message });
+    }
+  }
+
   return (
     <section className="workspace">
       <header className="topbar">
@@ -761,6 +782,9 @@ function PackageWorkspace({ data, onApplied }) {
                   <button onClick={saveFile} disabled={!dirty || saveState === "saving"}>
                     {saveState === "saving" ? "Saving..." : "Save"}
                   </button>
+                  <button className="applyButton" onClick={startApply} disabled={dirty || assistantState.status === "loading"}>
+                    {assistantState.status === "loading" ? "Starting..." : "Start apply"}
+                  </button>
                   <button className="appliedButton" onClick={markApplied} disabled={dirty || applyState === "saving"}>
                     {applyState === "saving" ? "Marking..." : "Mark applied"}
                   </button>
@@ -769,6 +793,12 @@ function PackageWorkspace({ data, onApplied }) {
 
               {String(saveState).startsWith("error") && <div className="saveError">{saveState}</div>}
               {String(applyState).startsWith("error") && <div className="saveError">{applyState}</div>}
+              {assistantState.message && (
+                <div className={`applyNotice ${assistantState.status}`}>
+                  <strong>{assistantState.status === "error" ? "Assistant failed" : "Apply process started"}</strong>
+                  <p>{assistantState.message}</p>
+                </div>
+              )}
 
               <div className="editorGrid">
                 <label className="editorPane">
@@ -939,6 +969,7 @@ function Metric({ icon, label, value }) {
 function Detail({ app, mode, onPackageGenerated }) {
   const [view, setView] = useState("overview");
   const [packageState, setPackageState] = useState({ status: "idle", result: null, error: "" });
+  const [assistantState, setAssistantState] = useState({ status: "idle", message: "" });
 
   if (!app) {
     return <section className="detail empty">No roles match the current filters.</section>;
@@ -959,6 +990,26 @@ function Detail({ app, mode, onPackageGenerated }) {
       onPackageGenerated?.(result, app);
     } catch (error) {
       setPackageState({ status: "error", result: null, error: error.message });
+    }
+  }
+
+  async function startApply() {
+    if (!app?.number) return;
+    setAssistantState({ status: "loading", message: "Starting Playwright assistant..." });
+    try {
+      const response = await fetch("/api/start-apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: app.number }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not start apply assistant");
+      setAssistantState({
+        status: "done",
+        message: `${result.message} I can help inspect and fill forms, but final Submit/Send/Apply stays with you.`,
+      });
+    } catch (error) {
+      setAssistantState({ status: "error", message: error.message });
     }
   }
 
@@ -993,6 +1044,11 @@ function Detail({ app, mode, onPackageGenerated }) {
             {packageState.status === "loading" ? "Generating..." : "Generate package"} <FolderOpen size={16} />
           </button>
         )}
+        {mode === "evaluated" && (
+          <button className="applyButton" onClick={startApply} disabled={assistantState.status === "loading"}>
+            {assistantState.status === "loading" ? "Starting..." : "Start apply"} <ArrowUpRight size={16} />
+          </button>
+        )}
       </div>
 
       {packageState.status === "done" && (
@@ -1012,6 +1068,13 @@ function Detail({ app, mode, onPackageGenerated }) {
         <div className="packagePanel error">
           <strong>Package generation failed</strong>
           <p>{packageState.error}</p>
+        </div>
+      )}
+
+      {assistantState.message && (
+        <div className={`applyNotice ${assistantState.status}`}>
+          <strong>{assistantState.status === "error" ? "Assistant failed" : "Apply process started"}</strong>
+          <p>{assistantState.message}</p>
         </div>
       )}
 

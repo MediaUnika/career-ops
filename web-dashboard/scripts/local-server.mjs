@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import yaml from "js-yaml";
 import { generatePackage } from "./generate-package.mjs";
 import { main as runScan } from "../../scan.mjs";
@@ -79,6 +80,28 @@ function updateApplicationStatus(number, status) {
   if (!found) throw new Error(`Application #${normalized} not found`);
   fs.writeFileSync(applicationsPath, lines.join("\n"), "utf8");
   return { number: normalized, status, appliedDate: status === "Applied" ? today : "" };
+}
+
+function startApplyAssistant(number) {
+  const normalized = String(number || "").padStart(3, "0");
+  if (!/^\d{3}$/.test(normalized)) throw new Error("Application number is required");
+
+  const logPath = path.join(root, "web-dashboard-apply-assistant.log");
+  const output = fs.openSync(logPath, "a");
+  const child = spawn(process.execPath, ["apply-assistant.mjs", "--number", normalized], {
+    cwd: root,
+    detached: true,
+    stdio: ["ignore", output, output],
+    windowsHide: true,
+  });
+  child.unref();
+  fs.closeSync(output);
+  return {
+    ok: true,
+    number: normalized,
+    pid: child.pid,
+    message: `Application assistant started for #${normalized}. A Playwright browser should open shortly.`,
+  };
 }
 
 async function rebuildData() {
@@ -195,6 +218,14 @@ async function handle(req, res) {
       const body = await readBody(req);
       const payload = body ? JSON.parse(body) : {};
       const result = updateApplicationStatus(payload.number, payload.status);
+      sendJson(res, 200, result);
+      return;
+    }
+
+    if (req.url === "/api/start-apply" && req.method === "POST") {
+      const body = await readBody(req);
+      const payload = body ? JSON.parse(body) : {};
+      const result = startApplyAssistant(payload.number);
       sendJson(res, 200, result);
       return;
     }

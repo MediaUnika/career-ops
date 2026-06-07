@@ -50,6 +50,9 @@ bun.lock
 career-dashboard
 dashboard/*.exe
 web-dashboard-dev.log
+web-dashboard-dev.err.log
+web-dashboard-dev.out.log
+web-dashboard-apply-assistant.log
 web-dashboard/dist/
 web-dashboard/public/career-data.json
 web-dashboard/public/reports/
