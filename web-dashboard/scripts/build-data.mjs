@@ -221,6 +221,31 @@ function readSources() {
     url: "",
     query: repairText(entry.query || ""),
   }));
+  const existingSourceKeys = new Set(
+    [...tracked, ...searches].map((source) => `${source.name.toLowerCase()}::${source.url || source.query || ""}`)
+  );
+  const existingSourceUrls = new Set([...tracked, ...searches].map((source) => source.url).filter(Boolean));
+  const pipelineBoards = pipelineContent
+    .split(/\r?\n/)
+    .filter((line) => line.trim().startsWith("- [ ]"))
+    .map(parsePendingLine)
+    .filter(isPlaceholderLead)
+    .map((job) => ({
+      type: "source-board",
+      name: repairText(job.company || sourceFromUrl(job.url)),
+      provider: "pipeline",
+      enabled: true,
+      url: job.url || "",
+      query: repairText(job.role || ""),
+    }))
+    .filter((source) => {
+      if (source.url && existingSourceUrls.has(source.url)) return false;
+      const key = `${source.name.toLowerCase()}::${source.url || source.query || ""}`;
+      if (existingSourceKeys.has(key)) return false;
+      existingSourceKeys.add(key);
+      if (source.url) existingSourceUrls.add(source.url);
+      return true;
+    });
 
   const historyRows = fs.existsSync(scanHistoryPath)
     ? fs.readFileSync(scanHistoryPath, "utf8").split(/\r?\n/).filter(Boolean).slice(1)
@@ -239,10 +264,10 @@ function readSources() {
   }
 
   return {
-    tracked,
+    tracked: [...tracked, ...pipelineBoards],
     searches,
-    total: tracked.length + searches.length,
-    enabled: [...tracked, ...searches].filter((source) => source.enabled).length,
+    total: tracked.length + searches.length + pipelineBoards.length,
+    enabled: [...tracked, ...searches, ...pipelineBoards].filter((source) => source.enabled).length,
     scanHistoryRows: historyRows.length,
     bySource: Object.fromEntries(bySource),
   };
