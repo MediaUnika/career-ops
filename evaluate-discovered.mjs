@@ -1,21 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
 import { repairText } from "./utils/text.mjs";
+import { pathToFileURL } from "node:url";
+import { execFileSync } from "node:child_process";
 
-const today = "2026-05-28";
+const today = new Date().toISOString().slice(0, 10);
 const root = import.meta.dirname;
 const pipelinePath = path.join(root, "data", "pipeline.md");
 const applicationsPath = path.join(root, "data", "applications.md");
 const reportsDir = path.join(root, "reports");
+const additionsDir = path.join(root, "batch", "tracker-additions");
 
 const cvProof = {
-  project: "CV lines 14, 34, 42, 51: project leadership, planning, and senior project work.",
-  change: "CV lines 10, 15, 173: change management, organizational development, Prosci certification.",
-  business: "CV lines 16, 58-59, 89-91: business development, startup mentoring, digital business value.",
-  customer: "CV lines 19, 24, 115-117, 124-125: stakeholder management, relationship marketing, customer advisory.",
-  digital: "CV lines 10, 16, 42-44, 73-74: digital transformation and secure digital products.",
-  operations: "CV lines 22, 106-108, 131, 146-147: operational excellence and service delivery.",
-  board: "CV lines 165-169: board and advisory experience in fintech/startup ecosystems.",
+  creative: "cv.md: 20+ yrs creative & art direction; brand systems and visual identity for luxury and lifestyle brands.",
+  brand: "cv.md: GASTROunika rebrand grew the caviar brand 338% to category leader in 8 countries.",
+  luxury: "cv.md: Acker Asia - built the creative engine for the world's #1 wine auction house (US$100M+ annual sales).",
+  content: "cv.md: 80+ catalogues and 10,000+ images published; leading wine photographer; Louis Roederer Awards finalist (2013).",
+  film: "cv.md: Director/Producer - Viking Blood (6M+ viewers), award-winning Stories Forlorn, Beast Stalker (2025, in post).",
+  product: "cv.md: UX/UI & e-commerce - FestiVote platform, Acker online auction system, Southern Glazer's QR tracking (+50% efficiency).",
+  marketing: "cv.md: social content & community (Instagram/TikTok), collectibles/IP, drops & scarcity, China->Europe market adaptation.",
 };
 
 function clean(text = "") {
@@ -37,6 +40,10 @@ function escapeCell(text = "") {
   return clean(String(text)).replace(/\|/g, "/");
 }
 
+function escapeTsv(text = "") {
+  return clean(String(text)).replace(/[\t\r\n]/g, " ");
+}
+
 function sourceFromUrl(url) {
   try {
     const host = new URL(url).hostname.replace(/^www\./, "");
@@ -44,8 +51,8 @@ function sourceFromUrl(url) {
     if (host.includes("thehub")) return "The Hub";
     if (host.includes("arbetsformedlingen")) return "Platsbanken";
     if (host.includes("ashbyhq")) return "Ashby";
-    if (host.includes("hellofresh")) return "HelloFresh";
-    if (host.includes("jobleads")) return "JobLeads";
+    if (host.includes("greenhouse")) return "Greenhouse";
+    if (host.includes("jobindex")) return "Jobindex";
     return host;
   } catch {
     return "Manual";
@@ -92,6 +99,24 @@ function parseExistingUrls() {
   return urls;
 }
 
+function normalizeKey(text = "") {
+  return clean(text).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function parseExistingApplications() {
+  const apps = fs.existsSync(applicationsPath) ? fs.readFileSync(applicationsPath, "utf8") : "";
+  return apps
+    .split(/\r?\n/)
+    .filter((line) => /^\|\s*\d+/.test(line))
+    .map((line) => line.replace(/^\|/, "").replace(/\|$/, "").split("|").map((field) => clean(field)))
+    .filter((fields) => fields.length >= 4)
+    .map((fields) => ({
+      company: fields[2],
+      role: fields[3],
+      key: `${normalizeKey(fields[2])}::${normalizeKey(fields[3])}`,
+    }));
+}
+
 function nextReportNumber() {
   const nums = fs.readdirSync(reportsDir)
     .map((name) => Number(name.match(/^(\d+)/)?.[1] || 0))
@@ -114,19 +139,21 @@ function scoreJob(job) {
     gaps.push(label);
   };
 
-  if (/change|forandring|transformation|adoption|implementation/.test(text)) add(0.75, "change, adoption, or implementation focus");
-  if (/project|projekt|pmo|program|programme|delivery/.test(text)) add(0.65, "project/program leadership focus");
-  if (/business development|affärsutvecklare|forretningsudvikling|strategy|strategi|strategic|partnership|alliances/.test(text)) add(0.55, "business development or strategy focus");
-  if (/customer success|client|customer|partner success|onboarding|account manager|relation/.test(text)) add(0.45, "customer-facing advisory or success angle");
-  if (/digital|ai|cyber|saas|cloud|tech|software|dynamics|automation|data/.test(text)) add(0.35, "digital or technology context");
-  if (/manager|senior|head|lead|advisor|consultant|konsult/.test(text)) add(0.35, "senior/advisory level signal");
-  if (/malm|lund|helsingborg|landskrona|skåne|skane|copenhagen|københavn|capital region|denmark|nordic|sweden/.test(text)) add(0.25, "geography fits Malmö/Southern Sweden/Copenhagen target");
+  // Positive signals — Uri's creative / brand / film / marketing world
+  if (/creative|art director|brand|visual|identity|design/.test(text)) add(0.75, "creative direction / brand & visual focus");
+  if (/film|video|director|screenwriter|narrative|producer|editor|motion|cinematic/.test(text)) add(0.6, "film / video / content production focus");
+  if (/luxury|wine|spirits|caviar|hospitality|collectible|f&b|premium|fashion|beauty|lifestyle/.test(text)) add(0.55, "luxury / lifestyle brand domain fit");
+  if (/marketing|social|community|campaign|influencer|content/.test(text)) add(0.45, "marketing / social / community angle");
+  if (/product|ux|ui|web|ecommerce|e-commerce|platform|digital/.test(text)) add(0.35, "product/UX / digital experience context");
+  if (/director|head|lead|principal|senior|chief|consultant/.test(text)) add(0.35, "senior / leadership level signal");
+  if (/copenhagen|københavn|denmark|danmark|las vegas|nevada|new york|london|remote/.test(text)) add(0.25, "geography fits Copenhagen/Las Vegas/New York/London/remote target");
 
-  if (/junior|student|graduate|intern|trainee/.test(text)) gap(0.7, "seniority may be too junior");
-  if (/engineer|architect|developer|vvs|bygg|elkraft|network|incident response|threat detection|cloud architect/.test(text)) gap(0.55, "may require deeper specialist technical/engineering background");
-  if (/account executive|sales specialist|business development representative/.test(text)) gap(0.35, "may be too quota-sales oriented");
-  if (/construction|fastigheter|broingenjör|regionnät|kylindustri|vs\b/.test(text)) gap(0.35, "may be domain-specific outside Liza's core narrative");
-  if (/maternity|parental leave|interim|contract|12 months/.test(text)) gap(0.15, "fixed-term/temporary signal to verify");
+  // Gap signals — outside Uri's creative focus
+  if (/junior|student|graduate|intern|trainee|assistant/.test(text)) gap(0.7, "seniority may be too junior");
+  if (/engineer|developer|software|backend|frontend|data scientist|machine learning|devops|architect/.test(text)) gap(0.6, "engineering role outside Uri's creative focus");
+  if (/account executive|sales representative|\bsdr\b|\bbdr\b|quota/.test(text)) gap(0.35, "may be too quota-sales oriented");
+  if (/accountant|bookkeeper|finance manager|controller|payroll|recruiter/.test(text)) gap(0.4, "back-office function outside creative focus");
+  if (/maternity|parental leave|interim|temporary|vikar/.test(text)) gap(0.15, "fixed-term/temporary signal to verify");
 
   score = Math.max(2.2, Math.min(4.8, score));
   return {
@@ -138,12 +165,12 @@ function scoreJob(job) {
 
 function archetypeFor(job) {
   const text = `${job.company} ${job.role}`.toLowerCase();
-  if (/change|forandring|transformation|adoption|implementation/.test(text)) return "Change Management / Transformation";
-  if (/customer success|client|onboarding|account|partner success/.test(text)) return "Customer Success / Client Advisory";
-  if (/strategy|strategi|business development|affärsutvecklare|partnership|alliances/.test(text)) return "Strategy / Business Development";
-  if (/project|projekt|pmo|program|delivery/.test(text)) return "Project / Program Management";
-  if (/cyber|ai|digital|saas|cloud|automation/.test(text)) return "Digital / Tech Transformation";
-  return "General Management / Advisory";
+  if (/film|screenwriter|narrative|producer|cinematic|game studio/.test(text) || /\bdirector\b/.test(text) && /film|tv|video|story/.test(text)) return "Film / TV Director & Screenwriter";
+  if (/marketing|social|community|campaign|influencer/.test(text)) return "Marketing / Social & Community";
+  if (/product|\bux\b|\bui\b|ecommerce|e-commerce|platform/.test(text)) return "Product / UX Design";
+  if (/art director|brand|visual|identity|graphic|motion/.test(text)) return "Brand & Visual / Art Direction";
+  if (/creative/.test(text)) return "Creative Director";
+  return "Creative Director / Brand";
 }
 
 function noteFor(score, job, result) {
@@ -156,15 +183,16 @@ function noteFor(score, job, result) {
 
 function reportMarkdown(num, job, result) {
   const archetype = archetypeFor(job);
-  const strengths = result.strengths.length ? result.strengths : ["role title has partial overlap with Liza's target areas"];
+  const strengths = result.strengths.length ? result.strengths : ["role title has partial overlap with Uri's target areas"];
   const gaps = result.gaps.length ? result.gaps : ["full JD still needed to verify requirements, scope, and seniority"];
   const proofRows = [];
-  if (/project|program|pmo|projekt/i.test(job.role)) proofRows.push(["Project leadership", cvProof.project]);
-  if (/change|forandring|transformation|adoption|implementation/i.test(job.role)) proofRows.push(["Change/transformation", cvProof.change]);
-  if (/business|strategy|strategi|partnership|alliances|affär/i.test(job.role)) proofRows.push(["Business development/strategy", cvProof.business]);
-  if (/customer|client|account|onboarding|success|partner/i.test(job.role)) proofRows.push(["Customer/stakeholder advisory", cvProof.customer]);
-  if (/digital|ai|cyber|saas|cloud|automation|tech/i.test(`${job.role} ${job.company}`)) proofRows.push(["Digital/technology context", cvProof.digital]);
-  if (!proofRows.length) proofRows.push(["General senior advisory fit", `${cvProof.project} ${cvProof.business}`]);
+  const roleText = `${job.role} ${job.company}`;
+  if (/creative|art director|brand|visual|identity|design/i.test(roleText)) proofRows.push(["Creative direction / brand", cvProof.creative]);
+  if (/luxury|wine|spirits|caviar|hospitality|collectible|f&b|premium|fashion|beauty/i.test(roleText)) proofRows.push(["Luxury / lifestyle domain", cvProof.luxury]);
+  if (/film|video|director|screenwriter|narrative|producer|editor|motion/i.test(roleText)) proofRows.push(["Film / video production", cvProof.film]);
+  if (/marketing|social|community|content|campaign|influencer/i.test(roleText)) proofRows.push(["Marketing / social / content", cvProof.marketing]);
+  if (/product|ux|ui|web|ecommerce|e-commerce|platform/i.test(roleText)) proofRows.push(["Product / UX", cvProof.product]);
+  if (!proofRows.length) proofRows.push(["General creative leadership fit", `${cvProof.creative} ${cvProof.brand}`]);
 
   return `# Evaluation: ${job.company} - ${job.role}
 
@@ -197,26 +225,26 @@ ${proofRows.map(([signal, proof]) => `| ${signal} | ${proof} |`).join("\n")}
 
 ## C) Level and Strategy
 
-Position Liza as a senior project/change/business development profile who can connect stakeholders, structure delivery, and turn digital or organizational change into practical execution. If this role remains attractive after full JD review, tailor the CV around the strongest signal in the title.
+Position Uri as a senior creative director / brand and content leader who turns heritage and complex stories into category-defining luxury brands and owns creative delivery end-to-end (brand, packaging, product/UX, photography, film). If this role remains attractive after full JD review, tailor the CV around the strongest signal in the title.
 
 ## D) Comp and Demand
 
-Not researched in this triage pass. Before applying, verify salary range, employment type, hybrid expectations, and whether Swedish, Danish, or English is required.
+Not researched in this triage pass. Before applying, verify the budget/day-rate, employment type (perm vs contract), hybrid/remote expectations, and whether Danish or English is required.
 
 ## E) Customization Plan
 
 | # | Section | Proposed change | Why |
 |---|---|---|---|
-| 1 | Summary | Lead with ${archetype.toLowerCase()} | Matches the apparent role angle |
-| 2 | Core competencies | Move the most relevant project/change/customer/business skill into the first three bullets | Recruiters scan quickly |
-| 3 | Experience | Highlight Knowit, Ideon, Omegapoint, and Jayway depending on JD | These are the strongest current proof points |
+| 1 | Summary | Lead with ${archetype.toLowerCase()} framing | Matches the apparent role angle |
+| 2 | Core competencies | Move the most relevant creative / brand / film / marketing skill into the first three tags | Recruiters scan quickly |
+| 3 | Experience | Highlight MEDIAunika, Acker, GASTROunika, FestiVote, or the film work depending on the JD | These are the strongest proof points |
 
 ## F) Interview Plan
 
-- Sweden Secure Tech Hub: stakeholder coordination, national innovation ecosystem, cyber security/digitalization.
-- Knowit Insight: Nordic consulting, client work, change-oriented project planning.
-- Omegapoint/Jayway: digital transformation, business development, consultative sales, business value.
-- Ideon Meeting/Meeting in Mind: operational excellence, facilitation, events, service delivery.
+- GASTROunika: luxury caviar rebrand, 338% growth, end-to-end brand and packaging systems.
+- Acker Asia: built the creative engine for the world's #1 wine auction house (US$100M+); 10,000+ images, auction-platform UX.
+- Viking Blood / Stories Forlorn: award-winning film direction and full production ownership; storytelling under constraints.
+- FestiVote / Southern Glazer's: product/UX delivery - phygital festival platform and a QR warehouse system (+50% efficiency).
 
 ## G) Posting Legitimacy
 
@@ -240,8 +268,10 @@ export function main() {
   if (!fs.existsSync(pipelinePath)) throw new Error(`Missing ${pipelinePath}`);
   if (!fs.existsSync(applicationsPath)) throw new Error(`Missing ${applicationsPath}`);
   fs.mkdirSync(reportsDir, { recursive: true });
+  fs.mkdirSync(additionsDir, { recursive: true });
 
   const existingUrls = parseExistingUrls();
+  const existingKeys = new Set(parseExistingApplications().map((entry) => entry.key));
   const pipeline = fs.readFileSync(pipelinePath, "utf8");
   const jobs = pipeline
     .split(/\r?\n/)
@@ -251,35 +281,54 @@ export function main() {
   let nextNum = nextReportNumber();
   const additions = [];
   const created = [];
+  const skippedDuplicates = [];
 
   for (const job of jobs) {
-    if (job.url && existingUrls.has(job.url)) continue;
+    const key = `${normalizeKey(job.company)}::${normalizeKey(job.role)}`;
+    if ((job.url && existingUrls.has(job.url)) || existingKeys.has(key)) {
+      skippedDuplicates.push({ company: job.company, role: job.role, url: job.url });
+      continue;
+    }
 
     const num = nextNum++;
     const result = scoreJob(job);
-    const reportName = `${String(num).padStart(3, "0")}-${slug(job.company)}-${slug(job.role)}-${today}.md`;
+    const padded = String(num).padStart(3, "0");
+    const reportName = `${padded}-${slug(job.company)}-${slug(job.role)}-${today}.md`;
     const reportPath = path.join("reports", reportName).replace(/\\/g, "/");
     fs.writeFileSync(path.join(root, reportPath), reportMarkdown(num, job, result), "utf8");
 
-    const row = `| ${String(num).padStart(3, "0")} | ${today} | ${escapeCell(job.company)} | ${escapeCell(job.role)} | ${result.score.toFixed(1)}/5 | Evaluated | No | [${String(num).padStart(3, "0")}](${reportPath}) | ${escapeCell(noteFor(result.score, job, result))} |`;
-    additions.push(row);
+    const row = [
+      padded,
+      today,
+      escapeTsv(job.company),
+      escapeTsv(job.role),
+      "Evaluated",
+      `${result.score.toFixed(1)}/5`,
+      "No",
+      `[${padded}](${reportPath})`,
+      escapeTsv(noteFor(result.score, job, result)),
+    ].join("\t");
+    const tsvPath = path.join(additionsDir, `${padded}-${slug(job.company)}.tsv`);
+    fs.writeFileSync(tsvPath, `${row}\n`, "utf8");
+    additions.push(tsvPath);
     created.push({ num, company: job.company, role: job.role, score: result.score });
     if (job.url) existingUrls.add(job.url);
+    existingKeys.add(key);
   }
 
   if (additions.length) {
-    fs.appendFileSync(applicationsPath, `${additions.join("\n")}\n`, "utf8");
+    execFileSync("node", [path.join(root, "merge-tracker.mjs")], { cwd: root, stdio: "pipe" });
   }
 
   console.log(JSON.stringify({
     pendingFound: jobs.length,
-    alreadyEvaluated: jobs.length - created.length,
+    alreadyEvaluated: skippedDuplicates.length,
     created: created.length,
     firstCreated: created.slice(0, 5),
     lastCreated: created.slice(-5),
   }, null, 2));
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, "/")}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

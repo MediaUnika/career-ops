@@ -1,13 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
+import { repairText } from "../../utils/text.mjs";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 const publicRoot = path.resolve(import.meta.dirname, "..", "public");
-const today = "2026-05-28";
+const today = new Date().toISOString().slice(0, 10);
 
 function clean(text = "") {
-  return String(text).replace(/\s+/g, " ").trim();
+  return repairText(String(text)).replace(/\s+/g, " ").trim();
 }
 
 function slug(text = "") {
@@ -56,6 +58,53 @@ function reportSection(report, title) {
   return report.match(new RegExp(`## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |$)`, "m"))?.[1]?.trim() || "";
 }
 
+function markdownSection(markdown, title) {
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return markdown.match(new RegExp(`## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |$)`, "m"))?.[1]?.trim() || "";
+}
+
+function loadProfile() {
+  const profilePath = path.join(root, "config", "profile.yml");
+  if (!fs.existsSync(profilePath)) return {};
+  return yaml.load(fs.readFileSync(profilePath, "utf8")) || {};
+}
+
+function loadCv() {
+  const cvPath = path.join(root, "cv.md");
+  return fs.existsSync(cvPath) ? repairText(fs.readFileSync(cvPath, "utf8")) : "";
+}
+
+function candidateContext() {
+  const profile = loadProfile();
+  const cv = loadCv();
+  const candidate = profile.candidate || {};
+  const narrative = profile.narrative || {};
+  const name = clean(candidate.full_name || cv.match(/^#\s+(.+)$/m)?.[1] || "Candidate");
+  const headline = clean(narrative.headline || cv.match(/^#\s+.+\n+(.+)$/m)?.[1] || "Creative professional");
+  const location = clean(candidate.location || "");
+  const linkedin = clean(candidate.linkedin || "");
+  const portfolio = clean(candidate.portfolio_url || profile.narrative?.portfolio?.schwarzcreative || "");
+  const summary = clean(narrative.exit_story || markdownSection(cv, "Summary"));
+  const superpowers = Array.isArray(narrative.superpowers) ? narrative.superpowers.map(clean).filter(Boolean) : [];
+  const competencies = markdownSection(cv, "Core Competencies")
+    .split(/\r?\n/)
+    .map((line) => clean(line.replace(/^-\s*/, "")))
+    .filter(Boolean);
+  const education = markdownSection(cv, "Education");
+  const languages = markdownSection(cv, "Languages");
+  const experience = [
+    markdownSection(cv, "Experience — Brand, Creative & Marketing"),
+    markdownSection(cv, "Experience - Brand, Creative & Marketing"),
+    markdownSection(cv, "Experience"),
+  ].find(Boolean) || "";
+  const experienceBlocks = experience
+    .split(/\n(?=### )/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  return { name, headline, location, linkedin, portfolio, summary, superpowers, competencies, education, languages, experienceBlocks };
+}
+
 function keywordsFrom(report, app) {
   const raw = reportSection(report, "Keywords extracted")
     || [reportValue(report, "Archetype"), app.role, app.company].join(", ");
@@ -69,21 +118,42 @@ function keywordsFrom(report, app) {
 function emphasisFor(app, report) {
   const text = `${app.role} ${reportValue(report, "Archetype")} ${report}`.toLowerCase();
   const items = [];
-  if (/change|forandring|transformation|adoption/.test(text)) items.push("change management and adoption");
-  if (/project|program|pmo|delivery|projekt/.test(text)) items.push("structured project and program delivery");
-  if (/customer|client|success|onboarding|partner/.test(text)) items.push("customer-facing advisory and stakeholder alignment");
-  if (/business|strategy|strategi|partnership|alliances/.test(text)) items.push("business development and strategy-to-execution");
-  if (/digital|ai|cyber|saas|cloud|automation|tech/.test(text)) items.push("digital transformation and technology-enabled business value");
+  if (/creative|art director|brand|visual|design/.test(text)) items.push("creative direction and brand strategy");
+  if (/film|video|director|screenwriter|narrative|production|editor|motion/.test(text)) items.push("film, video, and content production");
+  if (/marketing|social|content|community|campaign|influencer/.test(text)) items.push("social content and brand marketing");
+  if (/luxury|wine|spirits|caviar|hospitality|collectible|f&b|premium/.test(text)) items.push("luxury and lifestyle brand building");
+  if (/product|ux|ui|platform|web|ecommerce|e-commerce|digital/.test(text)) items.push("product/UX and digital experience");
   return [...new Set(items)].slice(0, 4);
 }
 
-function tailoredCv(app, report, keywords, emphasis) {
-  return `# Liza Johansson
+function relevantExperienceBlocks(ctx, emphasis) {
+  const terms = [...emphasis, "creative", "brand", "luxury", "film", "content", "ux", "product", "marketing"]
+    .join(" ")
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((term) => term.length > 3);
+  const scored = ctx.experienceBlocks.map((block, index) => {
+    const text = block.toLowerCase();
+    const score = terms.reduce((sum, term) => sum + (text.includes(term) ? 1 : 0), 0);
+    return { block, index, score };
+  });
+  return scored
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 5)
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.block);
+}
 
-Project Leadership | Change Management | Digital Transformation
+function tailoredCv(app, report, keywords, emphasis, ctx) {
+  const core = [...ctx.superpowers, ...ctx.competencies].filter(Boolean);
+  const uniqueCore = [...new Set(core)].slice(0, 10);
+  const experience = relevantExperienceBlocks(ctx, emphasis);
 
-Greater Malmo Metropolitan Area  
-LinkedIn: https://www.linkedin.com/in/lizajohansson/
+  return `# ${ctx.name}
+
+${ctx.headline}
+
+${[ctx.location, ctx.linkedin ? `LinkedIn: ${ctx.linkedin}` : "", ctx.portfolio ? `Portfolio: ${ctx.portfolio}` : ""].filter(Boolean).join("  \n")}
 
 ## Target Role
 
@@ -91,7 +161,7 @@ ${app.company} - ${app.role}
 
 ## Tailored Summary
 
-Management consultant and senior project leader with experience across ${emphasis.join(", ") || "project leadership, change, and business development"}. Experienced in helping organizations move from idea to execution across digitalization, cyber security innovation, startup ecosystems, stakeholder-heavy projects, and customer-facing advisory work.
+${ctx.summary || `Award-winning creative leader with role-relevant strengths across ${emphasis.join(", ") || "creative direction, brand strategy, and content production"}.`} For this application, the strongest fit signals are ${emphasis.join(", ") || keywords.slice(0, 4).join(", ") || "the role requirements and target profile"}.
 
 ## Role-Matched Keywords
 
@@ -99,99 +169,69 @@ ${keywords.map((keyword) => `- ${keyword}`).join("\n")}
 
 ## Core Competencies For This Role
 
-- Project leadership and project planning
-- Change management and organizational development
-- Business development and digital transformation
-- Stakeholder management and communication
-- Customer-facing advisory and consultative sales
-- Operational excellence and process improvement
-- Innovation ecosystems, startups, and scaleups
-- Training, enablement, and facilitation
+${uniqueCore.map((item) => `- ${item}`).join("\n") || "- Creative direction\n- Brand strategy\n- Content production"}
 
 ## Most Relevant Experience
 
-### Knowit Insight | Management Consultant
+${experience.join("\n\n") || "Add relevant CV experience here after reviewing the full JD."}
 
-- Supported Nordic customers through structured consulting methods, project planning, communication, and change-oriented client work.
-- Brought cross-functional stakeholders together around practical delivery, business value, and execution.
+## Education
 
-### Ideon Science Park | Project Manager, Sweden Secure Tech Hub - Sweden ICT
-
-- Project manager for a national cyber security innovation hub and European Digital Innovation Hub.
-- Helped SMEs create safer digital products and solutions from the design and development phase.
-- Worked in a consortium representing more than 2,400 companies and 59,000 employees.
-
-### Omegapoint | Agile Project Manager / Business Developer
-
-- Worked with agile project management and business development in a technology consultancy focused on secure IT systems and digital transformation.
-- Helped customers identify new business opportunities, streamline processes, manage requirements, and become faster and more sustainable in a digital world.
-
-### Jayway by Devoteam | Business and Operations Developer
-
-- Connected digitalization and new applications to concrete business value for customers.
-- Contributed to new processes and formats for lead generation, relationship marketing, and consultative sales.
-
-## Education and Certifications
-
-- Prosci Certified Change Practitioner
-- EFL Executive Education, Business Development Program, 2024
-- Wenell Projektledning, Practical Project Management, 2010
+${ctx.education || "See canonical CV for education."}
 
 ## Languages
 
-- Swedish: Native or bilingual
-- English: Full professional
-- French: Limited working
+${ctx.languages || "See canonical CV for languages."}
 `;
 }
 
-function coverLetter(app, report, keywords, emphasis) {
+function coverLetter(app, report, keywords, emphasis, ctx) {
   const archetype = reportValue(report, "Archetype") || "the role";
   return `# Cover Letter - ${app.company} - ${app.role}
 
 Dear hiring team,
 
-I am applying for the ${app.role} role at ${app.company}. The role stands out because it connects closely with the work I have done across ${emphasis.join(", ") || "project leadership, change management, and digital transformation"}.
+I am applying for the ${app.role} role at ${app.company}. It stands out because it connects closely with the work I have done across ${emphasis.join(", ") || "creative direction, brand strategy, and content production"}.
 
-In my recent work as a management consultant at Knowit Insight and as Project Manager for Sweden Secure Tech Hub at Ideon Science Park, I have worked in stakeholder-heavy environments where structure, communication, and execution matter. Sweden Secure Tech Hub gave me the opportunity to help small and medium-sized technology companies create safer digital products within a national innovation ecosystem designated as a European Digital Innovation Hub.
+${ctx.summary || "My background spans creative direction, brand strategy, product/UX, content production, and film."}
 
-What I would bring to ${app.company} is a practical combination of project leadership, change capability, business development, and customer-facing communication. I am comfortable turning broad goals into plans, aligning people around next steps, and keeping delivery connected to business value.
+What I would bring to ${app.company} is a full-stack creative leader who turns heritage and complex stories into high-luxury visual language, and who can take an idea from strategy to finished, polished delivery.
 
-For this role, I would emphasize my experience with ${keywords.slice(0, 5).join(", ")}. I would also bring a Prosci-certified change perspective and a background in Nordic consulting, innovation ecosystems, and digital transformation.
+For this role, I would emphasize my experience with ${keywords.slice(0, 5).join(", ")}, plus AI-augmented creative production.
 
 I would welcome the opportunity to discuss how my experience can support ${app.company}'s priorities for ${archetype.toLowerCase()}.
 
-Kind regards,  
-Liza Johansson
+Kind regards,
+${ctx.name}
 `;
 }
 
-function linkedinMessage(app) {
+function linkedinMessage(app, ctx) {
   return `Hi,
 
-I saw the ${app.role} role at ${app.company} and wanted to reach out. My background combines management consulting, senior project leadership, change management, digital transformation, and stakeholder-heavy innovation work in the Nordic tech ecosystem.
+I saw the ${app.role} role at ${app.company} and wanted to reach out. My background combines ${ctx.superpowers.slice(0, 3).join(", ") || ctx.headline}.
 
-The role looks close to the kind of work I have done with Knowit Insight, Ideon Science Park, Sweden Secure Tech Hub, and Omegapoint. Happy to share a tailored CV if useful.
+The role looks close to the kind of creative work I am targeting. Happy to share a tailored CV${ctx.portfolio ? ` and portfolio (${ctx.portfolio})` : ""} if useful.
 
-Best,  
-Liza Johansson
+Best,
+${ctx.name}
 `;
 }
 
-function applicationAnswers(app, report) {
+function applicationAnswers(app, report, ctx, emphasis) {
   return `# Application Answers - ${app.company} - ${app.role}
 
 ## Why are you interested in this role?
 
-This role connects strongly with my background in project leadership, change management, digital transformation, and stakeholder alignment. I am especially interested in roles where I can help turn strategic or digital ambitions into practical execution.
+This role connects strongly with my background in ${emphasis.join(", ") || ctx.headline}. I am especially drawn to work where I can turn a brand's heritage and story into a distinctive visual language and experience.
 
 ## What makes you a strong fit?
 
-I bring senior project and consulting experience from Knowit Insight, Ideon Science Park, Sweden Secure Tech Hub, Omegapoint, and Jayway by Devoteam. My work has often involved aligning diverse stakeholders, structuring ambiguous initiatives, and connecting digitalization to concrete business value.
+${ctx.summary || "I bring senior creative experience across brand, content, product/UX, and film, with measurable commercial impact."}
 
 ## What would you bring in the first months?
 
-I would start by understanding the organization, stakeholders, goals, and delivery rhythm. From there I would create structure around priorities, decision points, communication, and measurable progress while building trust with the people involved.
+I would start by understanding the brand, audience, and goals, then establish a clear creative direction and the systems to deliver it consistently across every touchpoint.
 
 ## Notes from report
 
@@ -210,6 +250,7 @@ export async function generatePackage(number) {
   const report = fs.readFileSync(reportAbs, "utf8");
   const keywords = keywordsFrom(report, app);
   const emphasis = emphasisFor(app, report);
+  const ctx = candidateContext();
   const folderName = `${app.number}-${slug(app.company)}-${slug(app.role)}`;
   const outDir = path.join(root, "output", "application-packages", folderName);
   const publicDir = path.join(publicRoot, "application-packages", folderName);
@@ -217,10 +258,10 @@ export async function generatePackage(number) {
   fs.mkdirSync(publicDir, { recursive: true });
 
   const files = [
-    ["tailored-cv.md", tailoredCv(app, report, keywords, emphasis)],
-    ["cover-letter.md", coverLetter(app, report, keywords, emphasis)],
-    ["linkedin-message.md", linkedinMessage(app)],
-    ["application-answers.md", applicationAnswers(app, report)],
+    ["tailored-cv.md", tailoredCv(app, report, keywords, emphasis, ctx)],
+    ["cover-letter.md", coverLetter(app, report, keywords, emphasis, ctx)],
+    ["linkedin-message.md", linkedinMessage(app, ctx)],
+    ["application-answers.md", applicationAnswers(app, report, ctx, emphasis)],
   ];
 
   const index = `# Application Package - ${app.company} - ${app.role}

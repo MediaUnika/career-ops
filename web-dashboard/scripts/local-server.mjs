@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import yaml from "js-yaml";
 import { generatePackage } from "./generate-package.mjs";
 import { main as runScan } from "../../scan.mjs";
 import { main as evaluateDiscovered } from "../../evaluate-discovered.mjs";
@@ -122,19 +123,21 @@ function addSource(payload) {
   const url = String(payload.url || "").trim();
   const query = String(payload.query || "").trim();
   if (!name) throw new Error("Source name is required");
+  if (/[\r\n]/.test(`${name}${provider}${url}${query}`)) throw new Error("Source fields must be single-line values");
 
   const portalsPath = path.join(root, "portals.yml");
-  const block = provider === "search"
-    ? `\n  - name: ${name}\n    query: '${query.replaceAll("'", "''")}'\n    enabled: true\n`
-    : `\n  - name: ${name}\n    provider: ${provider}\n    enabled: true${url ? `\n    careers_url: ${url}` : ""}\n`;
-  let content = fs.readFileSync(portalsPath, "utf8");
-  const section = provider === "search" ? "search_queries:" : "tracked_companies:";
-  const idx = content.indexOf(section);
-  if (idx === -1) throw new Error(`Missing ${section} in portals.yml`);
-  const nextIdx = content.indexOf("\n\n", idx + section.length);
-  const insertAt = nextIdx === -1 ? content.length : nextIdx;
-  content = `${content.slice(0, insertAt)}${block}${content.slice(insertAt)}`;
-  fs.writeFileSync(portalsPath, content, "utf8");
+  const config = yaml.load(fs.readFileSync(portalsPath, "utf8")) || {};
+  if (provider === "search") {
+    if (!query) throw new Error("Search query is required");
+    config.search_queries = Array.isArray(config.search_queries) ? config.search_queries : [];
+    config.search_queries.push({ name, query, enabled: true });
+  } else {
+    config.tracked_companies = Array.isArray(config.tracked_companies) ? config.tracked_companies : [];
+    const entry = { name, provider, enabled: true };
+    if (url) entry.careers_url = url;
+    config.tracked_companies.push(entry);
+  }
+  fs.writeFileSync(portalsPath, yaml.dump(config, { lineWidth: 120, noRefs: true }), "utf8");
   return { ok: true, name, provider };
 }
 

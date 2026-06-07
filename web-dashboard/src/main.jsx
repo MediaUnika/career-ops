@@ -139,7 +139,7 @@ function App() {
           <span className="mark">CO</span>
           <div>
             <strong>Career Ops</strong>
-            <small>Liza Johansson</small>
+            <small>Uri L. Schwarz</small>
           </div>
         </div>
         <nav className="railNav" aria-label="Dashboard sections">
