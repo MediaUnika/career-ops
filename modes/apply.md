@@ -4,8 +4,15 @@ Interactive mode for when the candidate is filling out an application form in Ch
 
 ## Requirements
 
-- **Best with Playwright in visible mode**: In visible mode, the candidate sees the browser and Claude can interact with the page.
+- **Best with Playwright in visible mode**: In visible mode, the candidate sees the browser and Codex can interact with the page.
+- **Launcher:** Use `npm run apply:assist -- --number NNN` for an evaluated role, or `npm run apply:assist -- https://job-url` for a direct URL. It opens a persistent visible browser profile so login sessions can be reused.
 - **Without Playwright**: the candidate shares a screenshot or pastes the questions manually.
+
+## Safety Boundary
+
+- Navigate, log in with the candidate present, inspect pages, fill fields, upload prepared documents, and draft answers.
+- **Do not click the final Submit / Send / Apply button.** Stop on the review screen and ask the candidate to make the final submission.
+- If a site has a one-click apply button with no review step, treat that button as final submission and do not click it.
 
 ## Workflow
 
@@ -17,7 +24,8 @@ Interactive mode for when the candidate is filling out an application form in Ch
 5. COMPARE     → Does the role on screen match the one evaluated? If it changed → notify
 6. ANALYZE     → Identify ALL visible form questions
 7. GENERATE    → For each question, generate a personalized response
-8. PRESENT     → Show formatted responses for copy-paste
+8. FILL/PRESENT -> Fill fields where safe, or show formatted responses for copy-paste
+9. REVIEW STOP -> Stop before final Submit/Send/Apply
 ```
 
 ## Step 1 — Detect the job
