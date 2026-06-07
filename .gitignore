@@ -58,3 +58,4 @@ web-dashboard/public/career-data.json
 web-dashboard/public/reports/
 web-dashboard/public/application-packages/
 package-lock.json
+.playwright-apply-profile/
