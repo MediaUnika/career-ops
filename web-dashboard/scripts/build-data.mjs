@@ -112,6 +112,16 @@ function parsePendingLine(line, index) {
   };
 }
 
+function isPlaceholderLead(job) {
+  const role = repairText(job.role || "").trim().toLowerCase();
+  const company = repairText(job.company || "").trim().toLowerCase();
+  const url = repairText(job.url || "").trim().toLowerCase();
+  if (/^\(?\s*(search|job board|company careers|national job database|recruitment agency|foreign ministry vacancies|english-language jobs|di job board|politics\/public sector board)/i.test(role)) return true;
+  if (/scraper|paid|needs rental|token in \.env/i.test(role)) return true;
+  if (/\/jobsoegning|searchstring=|jobs\?search=|find-job\?/.test(url) && /\b(jobindex|it-jobbank|workindenmark|the hub|jobnet|englishjobs|altinget|moment|udenrigsministeriet|dansk industri|novo nordisk|apify actor)\b/.test(company)) return true;
+  return false;
+}
+
 const content = fs.existsSync(appPath) ? fs.readFileSync(appPath, "utf8") : "";
 const rows = content
   .split(/\r?\n/)
@@ -145,7 +155,8 @@ const evaluatedUrls = new Set(applications.map((app) => app.url).filter(Boolean)
 const discoveredAll = pipelineContent
   .split(/\r?\n/)
   .filter((line) => line.trim().startsWith("- [ ]"))
-  .map(parsePendingLine);
+  .map(parsePendingLine)
+  .filter((job) => !isPlaceholderLead(job));
 const discovered = discoveredAll.filter((job) => !job.url || !evaluatedUrls.has(job.url));
 
 function readPackages() {
@@ -238,6 +249,8 @@ function readSources() {
 }
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
+fs.rmSync(publicReportsPath, { recursive: true, force: true });
+fs.rmSync(publicPackagesPath, { recursive: true, force: true });
 fs.mkdirSync(publicReportsPath, { recursive: true });
 for (const app of applications) {
   if (!app.reportPath) continue;

@@ -86,6 +86,16 @@ function parsePendingLine(line, index) {
   return { index, raw, url, company, role, location, source };
 }
 
+function isPlaceholderLead(job) {
+  const role = clean(job.role).toLowerCase();
+  const company = clean(job.company).toLowerCase();
+  const url = clean(job.url).toLowerCase();
+  if (/^\(?\s*(search|job board|company careers|national job database|recruitment agency|foreign ministry vacancies|english-language jobs|di job board|politics\/public sector board)/i.test(role)) return true;
+  if (/scraper|paid|needs rental|token in \.env/i.test(role)) return true;
+  if (/\/jobsoegning|searchstring=|jobs\?search=|find-job\?/.test(url) && /\b(jobindex|it-jobbank|workindenmark|the hub|jobnet|englishjobs|altinget|moment|udenrigsministeriet|dansk industri|novo nordisk|apify actor)\b/.test(company)) return true;
+  return false;
+}
+
 function parseExistingUrls() {
   const apps = fs.existsSync(applicationsPath) ? fs.readFileSync(applicationsPath, "utf8") : "";
   const urls = new Set();
@@ -284,6 +294,8 @@ export function main() {
   const skippedDuplicates = [];
 
   for (const job of jobs) {
+    if (isPlaceholderLead(job)) continue;
+
     const key = `${normalizeKey(job.company)}::${normalizeKey(job.role)}`;
     if ((job.url && existingUrls.has(job.url)) || existingKeys.has(key)) {
       skippedDuplicates.push({ company: job.company, role: job.role, url: job.url });
