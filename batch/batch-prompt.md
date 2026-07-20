@@ -332,6 +332,7 @@ node generate-pdf.mjs \
 |-------------|-----------|
 | `{{LANG}}` | `en` o `es` |
 | `{{PAGE_WIDTH}}` | `8.5in` (letter) o `210mm` (A4) |
+| `{{KICKER}}` | Línea en mayúsculas sobre el nombre con el arquetipo/rol detectado, distinta en cada aplicación (ver `modes/pdf.md`) |
 | `{{NAME}}` | (from profile.yml) |
 | `{{EMAIL}}` | (from profile.yml) |
 | `{{LINKEDIN_URL}}` | (from profile.yml) |

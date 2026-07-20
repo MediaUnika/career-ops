@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{NAME}} — Cover Letter — {{COMPANY}}</title>
+<style>
+  /* Archivo — body / structural grotesk */
+  @font-face {
+    font-family: 'Archivo';
+    src: url('./fonts/archivo-latin-400.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Archivo';
+    src: url('./fonts/archivo-latin-500.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Archivo';
+    src: url('./fonts/archivo-latin-600.woff2') format('woff2');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Archivo';
+    src: url('./fonts/archivo-latin-700.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  /* Fraunces — editorial serif, used sparingly (name + opening line + dates) */
+  @font-face {
+    font-family: 'Fraunces';
+    src: url('./fonts/fraunces-latin-700.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Fraunces';
+    src: url('./fonts/fraunces-italic-latin-400.woff2') format('woff2');
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Fraunces';
+    src: url('./fonts/fraunces-italic-latin-500.woff2') format('woff2');
+    font-weight: 500;
+    font-style: italic;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    font-family: 'Archivo', sans-serif;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: #211D1A;
+    background: #ffffff;
+  }
+
+  .page {
+    width: 100%;
+    max-width: {{PAGE_WIDTH}};
+    margin: 0 auto;
+    padding: 2px 0;
+  }
+
+  /* === HEADER — matches CV masthead === */
+  .header {
+    margin-bottom: 26px;
+  }
+
+  .header-kicker {
+    font-family: 'Archivo', sans-serif;
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #6E2430;
+    margin-bottom: 6px;
+  }
+
+  .header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: #211D1A;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+    line-height: 1.05;
+  }
+
+  .header-rule {
+    height: 1px;
+    background: #211D1A;
+    margin-bottom: 10px;
+  }
+
+  .contact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    font-size: 10.5px;
+    line-height: 1.4;
+    color: #5B5650;
+  }
+
+  .contact-row a {
+    color: #5B5650;
+    text-decoration: none;
+  }
+
+  .contact-row .separator {
+    color: #C9C2B8;
+  }
+
+  /* === DATE + RECIPIENT === */
+  .meta-block {
+    margin-bottom: 22px;
+  }
+
+  .meta-date {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 11px;
+    color: #7A756D;
+    margin-bottom: 14px;
+  }
+
+  .meta-recipient {
+    font-size: 11px;
+    color: #34302B;
+    line-height: 1.5;
+  }
+
+  .meta-recipient .recipient-company {
+    font-weight: 700;
+    color: #211D1A;
+  }
+
+  /* === SALUTATION === */
+  .salutation {
+    font-size: 11.5px;
+    color: #211D1A;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  /* === BODY === */
+  .letter-body p {
+    font-size: 11.5px;
+    line-height: 1.7;
+    color: #34302B;
+    margin-bottom: 14px;
+  }
+
+  /* Opening paragraph gets the editorial lede treatment — same voice as the CV summary */
+  .letter-body p.lede {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #34302B;
+  }
+
+  .letter-body strong {
+    font-weight: 700;
+    color: #211D1A;
+  }
+
+  /* === CLOSE / SIGNOFF === */
+  .signoff {
+    margin-top: 20px;
+  }
+
+  .signoff-line {
+    font-size: 11.5px;
+    color: #34302B;
+    margin-bottom: 28px;
+  }
+
+  .signoff-name {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: #211D1A;
+  }
+
+  .signoff-title {
+    font-size: 10px;
+    color: #7A756D;
+    margin-top: 3px;
+  }
+
+  a {
+    white-space: nowrap;
+  }
+
+  @media print {
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      padding: 0;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-kicker">{{KICKER}}</div>
+    <h1>{{NAME}}</h1>
+    <div class="header-rule"></div>
+    <div class="contact-row">
+      <span>{{EMAIL}}</span>
+      <span class="separator">|</span>
+      <a href="{{LINKEDIN_URL}}">{{LINKEDIN_DISPLAY}}</a>
+      <span class="separator">|</span>
+      <a href="{{PORTFOLIO_URL}}">{{PORTFOLIO_DISPLAY}}</a>
+      <span class="separator">|</span>
+      <span>{{LOCATION}}</span>
+    </div>
+  </div>
+
+  <!-- DATE + RECIPIENT -->
+  <div class="meta-block">
+    <div class="meta-date">{{DATE}}</div>
+    <div class="meta-recipient">
+      {{HIRING_CONTACT}}
+      <span class="recipient-company">{{COMPANY}}</span><br>
+      {{ROLE_TITLE}}
+    </div>
+  </div>
+
+  <!-- SALUTATION -->
+  <div class="salutation">{{SALUTATION}}</div>
+
+  <!-- BODY -->
+  <div class="letter-body">
+    {{BODY_PARAGRAPHS}}
+  </div>
+
+  <!-- SIGNOFF -->
+  <div class="signoff">
+    <div class="signoff-line">{{CLOSING_LINE}}</div>
+    <div class="signoff-name">{{NAME}}</div>
+    <div class="signoff-title">{{SIGNOFF_TITLE}}</div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -101,7 +101,7 @@ After detecting archetype, read `modes/_profile.md` for the user's specific fram
 
 ### ALWAYS
 
-0. **Cover letter:** If the form allows it, ALWAYS include one. Same visual design as CV. JD quotes mapped to proof points. 1 page max.
+0. **Cover letter:** If the form allows it, ALWAYS include one, generated from `templates/cover-letter-template.html` (see "Cover Letter Generation" in `modes/pdf.md`). Same visual design as CV. JD requirements mapped 1:1 to proof points, not thematically. 1 page max. Opening line must be specific to this JD/company — see Anti-Generic Rules in `modes/pdf.md`.
 1. Read cv.md, _profile.md, and article-digest.md (if exists) before evaluating
 1b. **First evaluation of each session:** Run `node cv-sync-check.mjs`. If warnings, notify user.
 2. Detect the role archetype and adapt framing per _profile.md

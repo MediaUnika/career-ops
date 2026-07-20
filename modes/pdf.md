@@ -9,17 +9,40 @@
 5. Detect company location → paper format:
    - US/Canada → `letter`
    - Rest of the world → `a4`
-6. Detect role archetype → adapt framing
-7. Rewrite Professional Summary by injecting JD keywords + exit narrative bridge ("Built and sold a business. Now applying systems thinking to [JD domain].")
+6. Detect role archetype → adapt framing. **If the user has multiple distinct experience tracks in `cv.md`** (e.g. more than one `## Experience —` section), pick the track that matches the detected archetype as the lead: give it full bullets and keep it first; compress the non-matching track(s) to 1-2 line summaries (title, company, one outcome) rather than dropping them — this keeps the resume focused without erasing real experience. Read `modes/_profile.md` for the archetype → track mapping if one exists there.
+7. Rewrite Professional Summary by injecting JD keywords + exit narrative bridge ("Built and sold a business. Now applying systems thinking to [JD domain].") — see **Anti-Generic Rules** below.
 8. Select top 3-4 most relevant projects for the job
 9. Reorder experience bullets by JD relevance
 10. Build competency grid from JD requirements (6-8 keyword phrases)
 11. Inject keywords naturally into existing achievements (NEVER invent)
-12. Generate full HTML from template + personalized content
-13. Read `name` from `config/profile.yml` → normalize to kebab-case lowercase (e.g. "John Doe" → "john-doe") → `{candidate}`
-14. Write HTML to `/tmp/cv-{candidate}-{company}.html`
-15. Execute: `node generate-pdf.mjs /tmp/cv-{candidate}-{company}.html output/cv-{candidate}-{company}-{YYYY-MM-DD}.pdf --format={letter|a4}`
-16. Report: PDF path, number of pages, keyword coverage %
+12. Write `{{KICKER}}`: a short uppercase line above the name naming the detected archetype/role family (e.g. "Creative Director — Brand, Film & Content" or "AI Platform / LLMOps Engineer"). Changes per application — this is a tailoring signal, not decoration.
+13. Generate full HTML from template + personalized content
+14. Read `name` from `config/profile.yml` → normalize to kebab-case lowercase (e.g. "John Doe" → "john-doe") → `{candidate}`
+15. Write HTML to `/tmp/cv-{candidate}-{company}.html`
+16. Execute: `node generate-pdf.mjs /tmp/cv-{candidate}-{company}.html output/cv-{candidate}-{company}-{YYYY-MM-DD}.pdf --format={letter|a4}`
+17. Report: PDF path, number of pages, keyword coverage %
+18. **Generate the matching cover letter** — see "Cover Letter Generation" below. Skip only if the user explicitly declines one for this application.
+
+## Anti-Generic Rules (tailoring quality gate)
+
+These exist because a resume that reads the same across applications loses to one that reads like it was written for this job by someone who read the JD closely.
+
+- **The Summary's first sentence must contain something that could only come from this JD** — the company's product/category, a named team, a specific outcome they're hiring for. Never open with a bare role title + years of experience; that sentence is reusable across any employer, which is the tell.
+- **Never reuse a Summary verbatim across two different companies.** If tempted to copy the last one, that's a signal the JD wasn't actually used — reread it and find the specific angle.
+- **Map JD requirements to proof points 1:1, not thematically.** If the JD lists 4 concrete asks, the tailored bullets/summary should visibly answer at least 3 of them with named specifics (metric, tool, project) — not a general "strong background in X" gesture at the theme.
+- **Vary structure, not just nouns.** Swapping "Company A" for "Company B" in an otherwise identical paragraph is not tailoring. Reorder which proof point leads based on what the JD emphasizes first.
+
+## Cover Letter Generation
+
+Per `_shared.md` rule: always produce a cover letter alongside the CV, matching visual design, 1 page max.
+
+1. Use `templates/cover-letter-template.html` (same font/color system as the CV template — do not invent a different look).
+2. Structure: opening paragraph (`.lede`, italic) makes ONE specific claim connecting the candidate to something real in the JD or company — not "I am excited to apply." Middle 1-2 paragraphs map the JD's top requirements to specific, named proof points from `cv.md`/`article-digest.md` (numbers, projects, outcomes — never generic claims). Closing paragraph is a short, concrete ask (conversation, portfolio review), not a restatement of the opening.
+3. Apply the **Anti-Generic Rules** above to the opening line specifically — it must not be reusable for a different company by swapping the name.
+4. Apply `## Writing Style` from `_profile.md` if present (see `_shared.md` Writing Style Calibration).
+5. Fill placeholders: `{{KICKER}}` (same as CV), `{{DATE}}` (today, long form), `{{HIRING_CONTACT}}` (named contact + line break if known from JD/research, else `"Hiring Team,<br>"`), `{{COMPANY}}`, `{{ROLE_TITLE}}` (`"Re: {role}"`), `{{SALUTATION}}`, `{{BODY_PARAGRAPHS}}` (HTML `<p>` tags; first one gets `class="lede"`), `{{CLOSING_LINE}}`, `{{SIGNOFF_TITLE}}` (candidate's current title/archetype framing from profile).
+6. Write HTML to `/tmp/cover-letter-{candidate}-{company}.html`, then: `node generate-pdf.mjs /tmp/cover-letter-{candidate}-{company}.html output/cover-letter-{candidate}-{company}-{YYYY-MM-DD}.pdf --format={letter|a4}` (same format rule as the CV).
+7. Report the path alongside the CV path.
 
 ## ATS Rules (clean parsing)
 
@@ -33,14 +56,18 @@
 
 ## PDF Design
 
-- **Fonts**: Space Grotesk (headings, 600-700) + DM Sans (body, 400-500)
-- **Fonts self-hosted**: `fonts/`
-- **Header**: name in Space Grotesk 24px bold + gradient line `linear-gradient(to right, hsl(187,74%,32%), hsl(270,70%,45%))` 2px + contact row
-- **Section headers**: Space Grotesk 13px, uppercase, letter-spacing 0.05em, color cyan primary
-- **Body**: DM Sans 11px, line-height 1.5
-- **Company names**: accent purple color `hsl(270,70%,45%)`
+Deliberately avoids the common AI-generated-resume tells: no Space Grotesk/DM Sans/Inter/Poppins pairing, no cyan-to-purple gradient bar, no rounded "pill" badge chips. The design reads as an edited, printed document — editorial, not templated.
+
+- **Fonts**: Fraunces (editorial serif — name, italic Summary/cover-letter lede, dates) + Archivo (grotesk — everything else: section titles, job titles/companies, bullets, skills). Fraunces is used sparingly and only at sizes where its character reads well; the bulk of the document is Archivo, kept clean for ATS parsing.
+- **Fonts self-hosted**: `fonts/` (`archivo-latin-{400,500,600,700}.woff2`, `fraunces-latin-{400,500,600,700}.woff2`, `fraunces-italic-latin-{400,500}.woff2`)
+- **Header**: `{{KICKER}}` (uppercase, tracked-out, wine accent) above the name; name in Fraunces 700 32px; solid 1px ink rule beneath (no gradient); contact row below
+- **Section headers**: Archivo 700 11px, uppercase, letter-spacing 0.12em, wine accent `#6E2430`, thin bottom border
+- **Body**: Archivo 11px, line-height 1.5; Professional Summary rendered as an italic Fraunces "lede" (12.5px) for an editorial pull-quote feel
+- **Company names**: ink black `#211D1A`; job title/role in wine accent `#6E2430`; dates in italic Fraunces `#7A756D`
+- **Competencies**: plain text separated by a wine-colored middot — no colored background chips
 - **Margins**: 0.6in
 - **Background**: pure white
+- **Palette**: ink `#211D1A` (text), body gray `#34302B`, muted `#7A756D` (dates/meta), wine accent `#6E2430` (single accent color — no gradients, no secondary hue)
 
 ## Section order (optimized "6-second recruiter scan")
 
@@ -69,6 +96,7 @@ Use the template in `cv-template.html`. Replace the `{{...}}` placeholders with 
 |-------------|-----------|
 | `{{LANG}}` | `en` or `es` |
 | `{{PAGE_WIDTH}}` | `8.5in` (letter) or `210mm` (A4) |
+| `{{KICKER}}` | Uppercase archetype/role line, tailored per application (e.g. "Creative Director — Brand, Film & Content") — see step 12 above |
 | `{{NAME}}` | (from profile.yml) |
 | `{{PHONE}}` | (from profile.yml — include with its separator only when `profile.yml` has a non-empty `phone` value; omit both `<span>` and `<span class="separator">` otherwise) |
 | `{{EMAIL}}` | (from profile.yml) |

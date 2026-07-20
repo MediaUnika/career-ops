@@ -4,6 +4,7 @@ Process job URLs stored in `data/pipeline.md`. The user adds URLs at any time an
 
 ## Workflow
 
+0. **Ingest LinkedIn alerts first.** LinkedIn has no public API/ATS feed, so `scan.mjs` cannot discover LinkedIn jobs on its own — they only enter the pipeline if pasted or dropped as files. Check `data/linkedin-alerts/` for any file other than `.gitkeep`. If files are present, run `node ingest-linkedin-alert.mjs data/linkedin-alerts` (or `npm run ingest:linkedin -- data/linkedin-alerts`) to parse them into `data/pipeline.md`, then delete the processed files from `data/linkedin-alerts/` so they aren't re-ingested next time. If the folder is empty, remind the user once per session: "Drop LinkedIn job-alert emails (forwarded/saved as .txt or .eml) into `data/linkedin-alerts/` and I'll pull them in automatically next time you run pipeline." Don't nag every run — once per session is enough.
 1. **Read** `data/pipeline.md` → search for `- [ ]` items in the "Pending" section
 2. **For each pending URL**:
    a. Calculate the next sequential `REPORT_NUM` (read `reports/`, take the highest number + 1)

@@ -7,6 +7,7 @@ System-layer template files used by career-ops scripts and modes. These files ar
 | File | Used By | Purpose |
 |------|---------|---------|
 | `cv-template.html` | `generate-pdf.mjs` | HTML/CSS template for ATS-optimized CV PDFs |
+| `cover-letter-template.html` | `generate-pdf.mjs` | HTML/CSS template for the matching cover letter PDF (see `modes/pdf.md` "Cover Letter Generation") |
 | `cv-template.tex` | `generate-latex.mjs` | LaTeX/Overleaf template for ATS-optimized CV PDFs |
 | `portals.example.yml` | Onboarding | Example portal scanner configuration (copy to `portals.yml` to activate) |
 | `states.yml` | `verify-pipeline.mjs`, `normalize-statuses.mjs`, `merge-tracker.mjs` | Canonical application states and their aliases |
@@ -15,9 +16,13 @@ System-layer template files used by career-ops scripts and modes. These files ar
 
 The HTML template rendered by Playwright into PDF. Uses placeholder tokens (`{{NAME}}`, `{{SUMMARY_TEXT}}`, `{{EXPERIENCE}}`, etc.) that the PDF pipeline fills at generation time.
 
-**Design:** Space Grotesk headings + DM Sans body, single-column ATS-safe layout, self-hosted fonts from `fonts/`.
+**Design:** Fraunces (editorial serif, used sparingly for the name/lede/dates) + Archivo (grotesk body/structure), wine accent `#6E2430`, no gradients or badge chips — deliberately avoids the common AI-generated-resume look. Single-column ATS-safe layout, self-hosted fonts from `fonts/`.
 
 **Customization:** Edit this file to change colors, spacing, or section order. The placeholder tokens are documented in `batch/batch-prompt.md` under "Template placeholders."
+
+### cover-letter-template.html
+
+Shares the exact font/color system with `cv-template.html` so the two documents read as one packet. Placeholder tokens and generation workflow are documented in `modes/pdf.md` under "Cover Letter Generation."
 
 ### cv-template.tex
 

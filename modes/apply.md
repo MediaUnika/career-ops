@@ -65,6 +65,7 @@ Identify ALL visible questions:
 Classify each question:
 - **Already answered in Section G** → adapt the existing response
 - **New question** → generate response from the report + cv.md
+- **Upload field for cover letter PDF** → use the cover letter generated in `modes/pdf.md` ("Cover Letter Generation") for this application if one exists at `output/cover-letter-{candidate}-{company}-*.pdf`; otherwise generate it now before filling the form. Only fall back to a plain-text cover letter field if the form has no upload option — in that case, still follow the Anti-Generic Rules (specific opening line, JD requirements mapped 1:1 to proof points) from `modes/pdf.md`.
 
 ## Step 5 — Generate responses
 
