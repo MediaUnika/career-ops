@@ -20,7 +20,9 @@
     "patterns": "node analyze-patterns.mjs",
     "gemini:eval": "node gemini-eval.mjs",
     "web": "npm --prefix web-dashboard run dev -- --port 5177",
-    "web:build": "npm --prefix web-dashboard run build"
+    "web:build": "npm --prefix web-dashboard run build",
+    "build:exe": "node launcher/build-exe.mjs",
+    "shortcut": "powershell -ExecutionPolicy Bypass -File launcher/create-shortcut.ps1"
   },
   "keywords": [
     "ai",
@@ -43,5 +45,8 @@
     "dotenv": "^17.0.0",
     "js-yaml": "^4.1.1",
     "playwright": "^1.58.1"
+  },
+  "devDependencies": {
+    "postject": "^1.0.0-alpha.6"
   }
 }

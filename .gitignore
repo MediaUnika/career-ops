@@ -53,9 +53,16 @@ web-dashboard-dev.log
 web-dashboard-dev.err.log
 web-dashboard-dev.out.log
 web-dashboard-apply-assistant.log
+web-dashboard-liveness-sweep.log
 web-dashboard/dist/
 web-dashboard/public/career-data.json
 web-dashboard/public/reports/
 web-dashboard/public/application-packages/
+
+# Desktop launcher build artifacts (rebuild locally via `npm run build:exe`)
+CareerOps.exe
+launcher/sea-prep.blob
+launcher/*.log
+launcher/.server.pid
 package-lock.json
 .playwright-apply-profile/

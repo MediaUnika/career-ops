@@ -13,6 +13,7 @@ const dist = path.join(here, "dist");
 const publicDir = path.join(here, "public");
 const portArg = process.argv.find((arg) => /^--port=/.test(arg));
 const port = Number(portArg?.split("=")[1] || process.env.PORT || 5177);
+const startedAt = new Date().toISOString();
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -69,10 +70,15 @@ function updateApplicationStatus(number, status) {
   const lines = content.split(/\r?\n/).map((line) => {
     if (!line.startsWith(`| ${normalized} |`)) return line;
     const fields = splitTrackerRow(line);
+    const previousStatus = fields[5];
     fields[5] = status;
     if (status === "Applied") {
       const note = fields[8] || "";
       fields[8] = /Applied \d{4}-\d{2}-\d{2}/.test(note) ? note : `Applied ${today}${note ? `; ${note}` : ""}`;
+    } else if (previousStatus === "Applied") {
+      // Reverting an accidental "Applied" click -- drop the stale "Applied {date}" tag
+      // instead of leaving it stuck in the notes forever.
+      fields[8] = (fields[8] || "").replace(/^Applied \d{4}-\d{2}-\d{2};?\s*/, "").trim();
     }
     found = true;
     return trackerRow(fields);
@@ -80,6 +86,34 @@ function updateApplicationStatus(number, status) {
   if (!found) throw new Error(`Application #${normalized} not found`);
   fs.writeFileSync(applicationsPath, lines.join("\n"), "utf8");
   return { number: normalized, status, appliedDate: status === "Applied" ? today : "" };
+}
+
+function scheduleLivenessSweep() {
+  const logPath = path.join(root, "web-dashboard-liveness-sweep.log");
+  const output = fs.openSync(logPath, "a");
+  fs.writeSync(output, `\n[${new Date().toISOString()}] Starting liveness sweep\n`);
+  const child = spawn(process.execPath, ["liveness-sweep.mjs"], {
+    cwd: root,
+    detached: true,
+    stdio: ["ignore", output, output],
+    windowsHide: true,
+  });
+  child.unref();
+  fs.closeSync(output);
+}
+
+function scheduleSelfUpdate() {
+  const launcherDir = path.join(root, "launcher");
+  fs.mkdirSync(launcherDir, { recursive: true });
+  const logPath = path.join(launcherDir, "update.log");
+  const output = fs.openSync(logPath, "a");
+  const child = spawn(
+    process.execPath,
+    [path.join(launcherDir, "self-update.mjs"), String(process.pid), String(port)],
+    { cwd: root, detached: true, stdio: ["ignore", output, output], windowsHide: true },
+  );
+  child.unref();
+  fs.closeSync(output);
 }
 
 function startApplyAssistant(number) {
@@ -174,6 +208,17 @@ function safeJoin(base, requestPath) {
 
 async function handle(req, res) {
   try {
+    if (req.url === "/api/health" && req.method === "GET") {
+      sendJson(res, 200, { ok: true, startedAt });
+      return;
+    }
+
+    if (req.url === "/api/self-update" && req.method === "POST") {
+      sendJson(res, 200, { ok: true, message: "Pulling the latest changes and restarting..." });
+      scheduleSelfUpdate();
+      return;
+    }
+
     if (req.url === "/api/generate-package" && req.method === "POST") {
       const body = await readBody(req);
       const payload = body ? JSON.parse(body) : {};
@@ -242,6 +287,7 @@ async function handle(req, res) {
     if (req.url === "/api/refresh-sources" && req.method === "POST") {
       const scan = await captureOutput(() => withCwd(root, () => runScan([])));
       const build = await captureOutput(() => rebuildData());
+      scheduleLivenessSweep(); // background -- checks pending/evaluated jobs for expired postings, doesn't block this response
       sendJson(res, 200, {
         ok: true,
         stdout: scan.stdout,
@@ -283,4 +329,5 @@ async function handle(req, res) {
 
 http.createServer(handle).listen(port, "127.0.0.1", () => {
   console.log(`Career Ops web dashboard running at http://127.0.0.1:${port}/`);
+  scheduleLivenessSweep(); // runs once per app open -- clears out postings that expired since last time
 });

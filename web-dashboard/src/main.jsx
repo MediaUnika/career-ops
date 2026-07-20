@@ -5,6 +5,7 @@ import {
   Archive,
   BriefcaseBusiness,
   CheckCircle2,
+  Download,
   FileText,
   FolderOpen,
   Gauge,
@@ -37,6 +38,62 @@ function compactUrl(url) {
   } catch {
     return url;
   }
+}
+
+function UpdateButton() {
+  const [state, setState] = useState("idle"); // idle | updating | error
+  const [message, setMessage] = useState("");
+
+  function pollForRestart() {
+    let sawDown = false;
+    const startedAt = Date.now();
+    const timer = setInterval(async () => {
+      if (Date.now() - startedAt > 90000) {
+        clearInterval(timer);
+        setState("error");
+        setMessage("Taking longer than expected -- check launcher/update.log");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/health?t=${Date.now()}`, { cache: "no-store" });
+        if (res.ok && sawDown) {
+          clearInterval(timer);
+          window.location.reload();
+        }
+      } catch {
+        sawDown = true;
+      }
+    }, 1500);
+  }
+
+  async function runUpdate() {
+    setState("updating");
+    setMessage("Pulling latest changes...");
+    try {
+      const res = await fetch("/api/self-update", { method: "POST" });
+      const result = await res.json();
+      if (!res.ok || !result.ok) throw new Error(result.error || "Update failed");
+      setMessage("Restarting -- this page will reload automatically...");
+      pollForRestart();
+    } catch (err) {
+      setState("error");
+      setMessage(err.message);
+    }
+  }
+
+  return (
+    <div className="updateBlock">
+      <button
+        className="updateButton"
+        title="Pull latest changes and restart"
+        onClick={runUpdate}
+        disabled={state === "updating"}
+      >
+        <Download size={18} className={state === "updating" ? "spin" : ""} />
+      </button>
+      {message ? <small className={`updateMessage ${state}`}>{message}</small> : null}
+    </div>
+  );
 }
 
 function App() {
@@ -132,6 +189,25 @@ function App() {
     setSection("targets");
   }
 
+  async function revertApplicationStatus(number) {
+    const response = await fetch("/api/update-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ number, status: "Evaluated" }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not revert status");
+    setData((current) => ({
+      ...current,
+      applications: current.applications.map((app) =>
+        app.number === number ? { ...app, status: "Evaluated", appliedDate: "", notes: (app.notes || "").replace(/^Applied \d{4}-\d{2}-\d{2};?\s*/, "") } : app,
+      ),
+      packages: current.packages.map((pkg) =>
+        pkg.number === number ? { ...pkg, status: "Package", appliedDate: "" } : pkg,
+      ),
+    }));
+  }
+
   return (
     <main className="shell">
       <aside className="rail">
@@ -159,6 +235,7 @@ function App() {
             <Target size={18} />
           </button>
         </nav>
+        <UpdateButton />
       </aside>
 
       {section === "sources" ? (
@@ -168,7 +245,7 @@ function App() {
       ) : section === "packages" ? (
         <PackageWorkspace data={data} onApplied={markAppliedInState} />
       ) : section === "targets" ? (
-        <TargetsWorkspace data={data} />
+        <TargetsWorkspace data={data} onRevert={revertApplicationStatus} />
       ) : (
       <section className="workspace">
         <header className="topbar">
@@ -823,8 +900,9 @@ function PackageWorkspace({ data, onApplied }) {
   );
 }
 
-function TargetsWorkspace({ data }) {
+function TargetsWorkspace({ data, onRevert }) {
   const [query, setQuery] = useState("");
+  const [revertState, setRevertState] = useState("idle"); // idle | working | error
   const targets = useMemo(() => {
     const packageByNumber = new Map(data.packages.map((pkg) => [pkg.number, pkg]));
     return data.applications
@@ -897,6 +975,23 @@ function TargetsWorkspace({ data }) {
                 </div>
                 <span className={`bigScore ${scoreTone(selected.score)}`}>{selected.score.toFixed(1)}</span>
               </div>
+
+              <button
+                className="revertButton"
+                disabled={revertState === "working"}
+                onClick={async () => {
+                  setRevertState("working");
+                  try {
+                    await onRevert(selected.number);
+                    setRevertState("idle");
+                  } catch {
+                    setRevertState("error");
+                  }
+                }}
+              >
+                {revertState === "working" ? "Reverting..." : "Wrong click? Revert to Evaluated"}
+              </button>
+              {revertState === "error" ? <p className="revertError">Could not revert -- try again.</p> : null}
 
               <div className="targetStats">
                 <div>
