@@ -16,10 +16,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { repairText } from './utils/text.mjs';
 
-const PIPELINE_PATH = 'data/pipeline.md';
-const JDS_DIR = 'jds';
+const root = path.dirname(fileURLToPath(import.meta.url));
+const PIPELINE_PATH = path.join(root, 'data', 'pipeline.md');
+const JDS_DIR = path.join(root, 'jds');
 
 function clean(text = '') {
   return repairText(String(text))
@@ -140,7 +142,7 @@ function parseAlertSummary(text) {
 }
 
 function ensurePipeline() {
-  fs.mkdirSync('data', { recursive: true });
+  fs.mkdirSync(path.dirname(PIPELINE_PATH), { recursive: true });
   if (!fs.existsSync(PIPELINE_PATH)) {
     fs.writeFileSync(PIPELINE_PATH, '# Pipeline — Pending URLs (Inbox)\n\n## Pendientes\n\n', 'utf8');
   }
@@ -182,11 +184,11 @@ function appendPipeline(entries) {
 
 function writeLocalJob(job) {
   fs.mkdirSync(JDS_DIR, { recursive: true });
-  const relPath = path.posix.join('jds', `linkedin-${slug(`${job.company}-${job.title}`)}.md`);
-  const absPath = relPath.replace(/\//g, path.sep);
+  const fileName = `linkedin-${slug(`${job.company}-${job.title}`)}.md`;
+  const absPath = path.join(JDS_DIR, fileName);
   const content = `# ${job.title}\n\n**Company:** ${job.company}\n**Location:** ${job.location || 'Unknown'}\n**Source:** LinkedIn alert / pasted job page\n\n---\n\n${clean(job.body)}\n`;
   fs.writeFileSync(absPath, content, 'utf8');
-  return `local:${relPath}`;
+  return `local:jds/${fileName}`;
 }
 
 function main() {
@@ -229,4 +231,8 @@ function main() {
   }, null, 2));
 }
 
-main();
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  main();
+}
+
+export { appendPipeline, oneLine, clean };

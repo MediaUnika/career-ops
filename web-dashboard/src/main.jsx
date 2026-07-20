@@ -584,6 +584,9 @@ function SourcesWorkspace({ data, onDataReload }) {
           <button onClick={evaluateDiscoveredJobs} disabled={evaluateState.status === "loading" || (data.summary.discoveredTotal || 0) === 0}>
             {evaluateState.status === "loading" ? "Evaluating..." : "Evaluate discovered"} <CheckCircle2 size={16} />
           </button>
+          <a className="linkedinImportLink" href="/import-linkedin.html" target="_blank" rel="noreferrer">
+            Import from LinkedIn <ArrowUpRight size={16} />
+          </a>
         </div>
       </header>
 

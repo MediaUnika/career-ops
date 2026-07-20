@@ -477,10 +477,12 @@ export async function main(argsOverride = null) {
       for (const job of jobs) {
         if (!titleFilter(job.title)) {
           totalFilteredTitle++;
+          if (process.env.SCAN_DEBUG) console.error(`  [filtered:title] ${job.company || company.name} | ${job.title}`);
           continue;
         }
         if (!locationFilter(job.location)) {
           totalFilteredLocation++;
+          if (process.env.SCAN_DEBUG) console.error(`  [filtered:location] ${job.company || company.name} | ${job.title} | ${job.location}`);
           continue;
         }
         if (seenUrls.has(job.url)) {

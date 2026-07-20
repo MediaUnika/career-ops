@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import from LinkedIn — Career Ops</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    background: #f7f5ef;
+    color: #17201d;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+    line-height: 1.6;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.lede { color: #6d746e; margin-top: 0; margin-bottom: 32px; }
+  .step { margin-bottom: 28px; }
+  .step h2 { font-size: 15px; margin-bottom: 8px; }
+  .bookmarklet-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px;
+    background: #fffdf7;
+    border: 1px solid #d8d2c5;
+  }
+  .bookmarklet-row a.bookmarklet {
+    flex-shrink: 0;
+    display: inline-block;
+    padding: 10px 16px;
+    background: #17443a;
+    color: #f7f5ef;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: grab;
+    white-space: nowrap;
+  }
+  .bookmarklet-row p { margin: 0; font-size: 13px; color: #6d746e; }
+  ol { padding-left: 20px; }
+  ol li { margin-bottom: 6px; }
+  code {
+    background: #e8eeeb;
+    padding: 1px 6px;
+    font-size: 12.5px;
+  }
+  details {
+    margin-top: 32px;
+    border: 1px solid #d8d2c5;
+    padding: 12px 16px;
+  }
+  details summary { cursor: pointer; font-size: 13px; color: #6d746e; }
+  pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11px;
+    background: #17201d;
+    color: #e8eeeb;
+    padding: 14px;
+    margin-top: 12px;
+  }
+  .back { display: inline-block; margin-top: 40px; font-size: 13px; color: #557f8c; }
+</style>
+</head>
+<body>
+
+<h1>Import LinkedIn job matches</h1>
+<p class="lede">LinkedIn has no public API for its personalized job search, so this reads what's already rendered in your own logged-in browser tab — no automated login, no scraping your account in the background.</p>
+
+<div class="step">
+  <h2>1. Install the bookmarklet (one-time)</h2>
+  <div class="bookmarklet-row">
+    <a class="bookmarklet" href='javascript:(function(){const seen=new Set();const jobs=[];document.querySelectorAll(%27a[href*=%22/jobs/view/%22]%27).forEach(function(a){const url=a.href.split(%27?%27)[0];if(seen.has(url))return;const card=a.closest(%27li, div[data-occludable-job-id], .job-card-container, article%27)||a.parentElement;const text=(card?card.innerText:(a.innerText||a.textContent||%27%27)).trim();const lines=text.split(%27\n%27).map(function(s){return s.trim();}).filter(Boolean);const title=(a.getAttribute(%27aria-label%27)||lines[0]||%27%27).trim();if(!title||title.length<3)return;seen.add(url);jobs.push({url:url,title:title,company:lines[1]||%27%27,location:lines[2]||%27%27});});if(jobs.length===0){alert(%27Career Ops: no job listings found on this page. Open a LinkedIn Jobs search results page first.%27);return;}fetch(%27http://127.0.0.1:5177/api/import-linkedin%27,{method:%27POST%27,headers:{%27Content-Type%27:%27application/json%27},body:JSON.stringify({jobs:jobs})}).then(function(r){return r.json();}).then(function(data){alert(%27Career Ops: imported %27+(data.added||0)+%27 new job(s) of %27+jobs.length+%27 found on this page.%27);}).catch(function(){alert(%27Career Ops: could not reach the dashboard. Make sure CareerOps.exe is running, then try again.%27);});})();'>📥 Import to Career Ops</a>
+    <p>Drag this button up to your browser's bookmarks bar. (If the bar is hidden, show it first — Ctrl+Shift+B in Chrome/Edge.)</p>
+  </div>
+</div>
+
+<div class="step">
+  <h2>2. Use it</h2>
+  <ol>
+    <li>Go to <code>linkedin.com/jobs</code> and run your search (or open "Jobs for you").</li>
+    <li>Make sure <strong>CareerOps.exe is running</strong> (the dashboard should be open in another tab).</li>
+    <li>Click the <strong>Import to Career Ops</strong> bookmark.</li>
+    <li>It reads every job card visible on the page and adds new ones straight into your pipeline inbox. You'll get a popup with the count. Scroll down to load more cards, then click it again to grab those too.</li>
+  </ol>
+</div>
+
+<p style="font-size:12.5px;color:#6d746e;">Only sends job title/company/location/URL for cards visible on the page — nothing else on the page, no credentials, no background access to your account.</p>
+
+<details>
+  <summary>View the bookmarklet's source (unminified, for your own review)</summary>
+  <pre>(function () {
+  const seen = new Set();
+  const jobs = [];
+  document.querySelectorAll('a[href*="/jobs/view/"]').forEach((a) => {
+    const url = a.href.split('?')[0];
+    if (seen.has(url)) return;
+    const card = a.closest('li, div[data-occludable-job-id], .job-card-container, article') || a.parentElement;
+    const text = (card ? card.innerText : (a.innerText || a.textContent || '')).trim();
+    const lines = text.split('\n').map((s) => s.trim()).filter(Boolean);
+    const title = (a.getAttribute('aria-label') || lines[0] || '').trim();
+    if (!title || title.length < 3) return;
+    seen.add(url);
+    jobs.push({ url, title, company: lines[1] || '', location: lines[2] || '' });
+  });
+
+  if (jobs.length === 0) {
+    alert('Career Ops: no job listings found on this page. Open a LinkedIn Jobs search results page first.');
+    return;
+  }
+
+  fetch('http://127.0.0.1:5177/api/import-linkedin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jobs }),
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      alert('Career Ops: imported ' + (data.added || 0) + ' new job(s) of ' + jobs.length + ' found on this page.');
+    })
+    .catch(() => {
+      alert('Career Ops: could not reach the dashboard. Make sure CareerOps.exe is running, then try again.');
+    });
+})();</pre>
+</details>
+
+<a class="back" href="/">← Back to dashboard</a>
+
+</body>
+</html>

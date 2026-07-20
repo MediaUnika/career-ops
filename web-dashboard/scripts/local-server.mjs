@@ -6,6 +6,9 @@ import yaml from "js-yaml";
 import { generatePackage } from "./generate-package.mjs";
 import { main as runScan } from "../../scan.mjs";
 import { main as evaluateDiscovered } from "../../evaluate-discovered.mjs";
+import { appendPipeline } from "../../ingest-linkedin-alert.mjs";
+
+const LINKEDIN_ORIGIN = "https://www.linkedin.com";
 
 const here = path.resolve(import.meta.dirname, "..");
 const root = path.resolve(here, "..");
@@ -174,6 +177,30 @@ async function withCwd(cwd, fn) {
   }
 }
 
+function importLinkedInJobs(payload) {
+  const rawJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+  if (rawJobs.length === 0) throw new Error("No jobs in payload");
+  if (rawJobs.length > 100) throw new Error("Too many jobs in a single import (max 100)");
+
+  const entries = [];
+  for (const job of rawJobs) {
+    const url = String(job?.url || "").trim().split("?")[0];
+    const title = String(job?.title || "").trim().slice(0, 200);
+    if (!/^https:\/\/(www\.)?linkedin\.com\/jobs\/view\/\d+/i.test(url)) continue;
+    if (!title) continue;
+    entries.push({
+      url,
+      title,
+      company: String(job?.company || "LinkedIn").trim().slice(0, 120) || "LinkedIn",
+      location: String(job?.location || "").trim().slice(0, 120),
+    });
+  }
+  if (entries.length === 0) throw new Error("No valid linkedin.com/jobs/view URLs in payload");
+
+  const added = appendPipeline(entries);
+  return { ok: true, received: rawJobs.length, valid: entries.length, added };
+}
+
 function addSource(payload) {
   const name = String(payload.name || "").trim();
   const provider = String(payload.provider || "manual").trim();
@@ -208,6 +235,26 @@ function safeJoin(base, requestPath) {
 
 async function handle(req, res) {
   try {
+    // The LinkedIn import bookmarklet runs on linkedin.com and POSTs here
+    // cross-origin -- only this one route needs CORS, scoped to that origin.
+    if (req.url === "/api/import-linkedin") {
+      res.setHeader("Access-Control-Allow-Origin", LINKEDIN_ORIGIN);
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      if (req.method === "POST") {
+        const body = await readBody(req);
+        const payload = body ? JSON.parse(body) : {};
+        const result = importLinkedInJobs(payload);
+        sendJson(res, 200, result);
+        return;
+      }
+    }
+
     if (req.url === "/api/health" && req.method === "GET") {
       sendJson(res, 200, { ok: true, startedAt });
       return;
