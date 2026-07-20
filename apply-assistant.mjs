@@ -82,13 +82,24 @@ function loadProfile() {
   return yaml.load(fs.readFileSync(profilePath, "utf8")) || {};
 }
 
-function findResumePdf() {
+// Prefer THIS job's tailored CV from its application package. Falling back to
+// "newest PDF in output/" would attach whatever unrelated job was generated
+// last, which is worse than attaching nothing.
+function findResumePdf(pkg) {
+  const tailored = pkg?.dir ? path.join(pkg.dir, "tailored-cv.pdf") : "";
+  if (tailored && fs.existsSync(tailored)) return tailored;
+
   if (!fs.existsSync(outputDir)) return "";
   const files = fs.readdirSync(outputDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && /\.pdf$/i.test(entry.name))
     .map((entry) => path.join(outputDir, entry.name))
     .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
   return files[0] || "";
+}
+
+function findCoverLetterPdf(pkg) {
+  const letter = pkg?.dir ? path.join(pkg.dir, "cover-letter.pdf") : "";
+  return letter && fs.existsSync(letter) ? letter : "";
 }
 
 async function ensurePackage(app) {
@@ -108,7 +119,7 @@ function findPackage(app) {
     .find((name) => name.startsWith(`${app.number}-`));
   if (!folder) return null;
   const dir = path.join(packagesDir, folder);
-  const files = ["tailored-cv.md", "cover-letter.md", "application-answers.md", "linkedin-message.md", "package.md"]
+  const files = ["tailored-cv.pdf", "cover-letter.pdf", "tailored-cv.md", "cover-letter.md", "application-answers.md", "linkedin-message.md", "package.md"]
     .map((name) => ({ name, path: path.join(dir, name) }))
     .filter((file) => fs.existsSync(file.path));
   return { dir, files };
@@ -254,9 +265,10 @@ async function fillIfEmpty(locator, value) {
   return true;
 }
 
-async function safeAutofill(page, profile) {
+async function safeAutofill(page, profile, pkg) {
   const candidate = profile.candidate || {};
-  const resumePdf = findResumePdf();
+  const resumePdf = findResumePdf(pkg);
+  const coverLetterPdf = findCoverLetterPdf(pkg);
   const filled = [];
 
   if (await fillIfEmpty(page.locator('input[name="_systemfield_name"], input#_systemfield_name'), candidate.full_name)) filled.push("name");
@@ -274,11 +286,23 @@ async function safeAutofill(page, profile) {
     const count = await resumeInput.count().catch(() => 0);
     if (count) {
       await resumeInput.setInputFiles(resumePdf).catch(() => {});
-      filled.push("resume PDF");
+      filled.push(`resume PDF (${path.basename(resumePdf)})`);
     }
   }
 
-  return { filled, resumePdf };
+  if (coverLetterPdf) {
+    const letterInput = page
+      .locator('input[type="file"]')
+      .filter({ has: page.locator('xpath=ancestor::*[contains(translate(., "COVERLETTR", "coverlettr"), "cover letter")]') })
+      .first();
+    const count = await letterInput.count().catch(() => 0);
+    if (count) {
+      await letterInput.setInputFiles(coverLetterPdf).catch(() => {});
+      filled.push("cover letter PDF");
+    }
+  }
+
+  return { filled, resumePdf, coverLetterPdf };
 }
 
 function resolveTarget(args) {
@@ -342,7 +366,7 @@ async function main() {
   const page = await browser.newPage();
   await page.goto(target.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
   const advance = await clickSafeApplyEntry(page, browser);
-  const autofill = await safeAutofill(page, profile);
+  const autofill = await safeAutofill(page, profile, pkg);
   await page.bringToFront().catch(() => {});
   console.log(`\nBrowser opened: ${await page.title()}`);
   console.log(`Apply assistant: ${advance.status} - ${advance.message}`);

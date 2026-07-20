@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { repairText } from "../../utils/text.mjs";
+import { renderDocuments } from "../../render-documents.mjs";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 const publicRoot = path.resolve(import.meta.dirname, "..", "public");
@@ -55,12 +56,14 @@ function reportValue(report, label) {
 
 function reportSection(report, title) {
   const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return report.match(new RegExp(`## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |$)`, "m"))?.[1]?.trim() || "";
+  return report.match(new RegExp(`(?:^|\\n)## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |$)`))?.[1]?.trim() || "";
 }
 
+// No `m` flag on purpose: with multiline, `$` matches end-of-LINE, so the lazy
+// quantifier stops at the first newline and every section is truncated to one line.
 function markdownSection(markdown, title) {
   const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return markdown.match(new RegExp(`## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |$)`, "m"))?.[1]?.trim() || "";
+  return markdown.match(new RegExp(`(?:^|\\n)## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |$)`))?.[1]?.trim() || "";
 }
 
 function markdownSectionsByPrefix(markdown, titlePrefix) {
@@ -142,18 +145,40 @@ function candidateContext() {
   const languages = markdownSection(cv, "Languages");
   const experienceBlocks = experienceBlocksFrom(cv);
   const proofPoints = proofPointsFromDigest(articleDigest);
+  const email = clean(candidate.email || "");
+  const phone = clean(candidate.phone || "");
+  const recognitionText = markdownSection(cv, "Recognition");
+  const projectsText = markdownSection(cv, "Selected Filmography & Awards");
 
-  return { name, headline, location, linkedin, portfolio, summary, superpowers, competencies, education, languages, experienceBlocks, proofPoints };
+  return {
+    name, headline, location, linkedin, portfolio, summary, superpowers, competencies,
+    education, languages, experienceBlocks, proofPoints,
+    email, phone, recognitionText, projectsText,
+  };
 }
+
+// Triage reports (evaluate-discovered.mjs) list internal scoring signals, not
+// real JD keywords -- "senior / leadership level signal", the source hostname,
+// etc. Those must never reach a document an employer reads.
+const KEYWORD_NOISE = /\bsignal\b|\bfocus\b|\bmetadata\b|\btriage\b|\bscore\b|^https?:|\.(com|net|io|dk|org)\b|^(pipeline|source|location|company|title)\b/i;
 
 function keywordsFrom(report, app) {
   const raw = reportSection(report, "Keywords extracted")
-    || [reportValue(report, "Archetype"), app.role, app.company].join(", ");
+    || [reportValue(report, "Archetype"), app.role].join(", ");
+  const seen = new Set();
   return raw
-    .split(/,|\n/)
+    .split(/,|\n|\//)
     .map((item) => item.replace(/^[-*]\s*/, "").trim())
     .filter(Boolean)
-    .slice(0, 10);
+    .filter((item) => item.length > 2 && item.length < 48)
+    .filter((item) => !KEYWORD_NOISE.test(item))
+    .filter((item) => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
 }
 
 function emphasisFor(app, report) {
@@ -267,21 +292,33 @@ ${ctx.languages || "See canonical CV for languages."}
 `;
 }
 
-function coverLetter(app, report, keywords, emphasis, ctx) {
+// Single source of truth for the tailored summary — used by both the markdown
+// draft and the rendered PDF so the two never drift apart.
+function tailoredSummary(app, emphasis, keywords, ctx) {
+  const focus = emphasis.join(", ") || keywords.slice(0, 3).join(", ") || "creative direction and brand strategy";
+  const base = ctx.summary || `Award-winning creative leader across ${focus}.`;
+  return `${base} For ${app.company}'s ${app.role}, the strongest fit signals are ${focus}.`;
+}
+
+function coverLetterParagraphs(app, report, keywords, emphasis, ctx) {
   const archetype = reportValue(report, "Archetype") || "the role";
+  const focus = emphasis.join(", ") || "creative direction, brand strategy, and content production";
+  return [
+    `I am applying for the ${app.role} role at ${app.company}. It stands out because it connects closely with the work I have done across ${focus}.`,
+    ctx.summary || "My background spans creative direction, brand strategy, product/UX, content production, and film.",
+    `What I would bring to ${app.company} is a full-stack creative leader who turns heritage and complex stories into high-luxury visual language, and who can take an idea from strategy to finished, polished delivery.`,
+    keywords.length ? `For this role, I would emphasize my experience with ${keywords.slice(0, 5).join(", ")}, plus AI-augmented creative production.` : "",
+    `I would welcome the opportunity to discuss how my experience can support ${app.company}'s priorities for ${archetype.toLowerCase()}.`,
+  ].filter(Boolean);
+}
+
+function coverLetter(app, report, keywords, emphasis, ctx) {
+  const paragraphs = coverLetterParagraphs(app, report, keywords, emphasis, ctx);
   return `# Cover Letter - ${app.company} - ${app.role}
 
-Dear hiring team,
+Dear ${app.company} team,
 
-I am applying for the ${app.role} role at ${app.company}. It stands out because it connects closely with the work I have done across ${emphasis.join(", ") || "creative direction, brand strategy, and content production"}.
-
-${ctx.summary || "My background spans creative direction, brand strategy, product/UX, content production, and film."}
-
-What I would bring to ${app.company} is a full-stack creative leader who turns heritage and complex stories into high-luxury visual language, and who can take an idea from strategy to finished, polished delivery.
-
-For this role, I would emphasize my experience with ${keywords.slice(0, 5).join(", ")}, plus AI-augmented creative production.
-
-I would welcome the opportunity to discuss how my experience can support ${app.company}'s priorities for ${archetype.toLowerCase()}.
+${paragraphs.join("\n\n")}
 
 Kind regards,
 ${ctx.name}
@@ -350,7 +387,12 @@ export async function generatePackage(number) {
 
 Generated: ${today}
 
-## Files
+## Send these
+
+- [Tailored CV (PDF)](tailored-cv.pdf)
+- [Cover letter (PDF)](cover-letter.pdf)
+
+## Working drafts (edit these, then regenerate)
 
 - [Tailored CV](tailored-cv.md)
 - [Cover letter](cover-letter.md)
@@ -370,16 +412,46 @@ Generated: ${today}
     fs.writeFileSync(path.join(publicDir, name), content, "utf8");
   }
 
+  // Render the designed PDFs (templates/cv-template.html + cover-letter-template.html).
+  // Non-fatal: a PDF failure shouldn't lose the markdown drafts that were just written.
+  const pdfFiles = [];
+  let pdfError = "";
+  try {
+    const terms = [...emphasis, ...keywords].join(" ").toLowerCase().split(/\W+/).filter((t) => t.length > 3);
+    const rendered = renderDocuments({
+      app,
+      ctx,
+      kicker: emphasis.length ? emphasis[0] : app.role,
+      summaryText: tailoredSummary(app, emphasis, keywords, ctx),
+      competencies: [...new Set([...ctx.superpowers, ...ctx.competencies])].filter(Boolean).slice(0, 7),
+      experienceBlocks: relevantExperienceBlocks(ctx, emphasis).map((b) => conciseExperienceBlock(b, terms)),
+      coverParagraphs: coverLetterParagraphs(app, report, keywords, emphasis, ctx),
+      outDir,
+    });
+    for (const file of rendered) {
+      fs.copyFileSync(file.path, path.join(publicDir, file.name));
+      pdfFiles.push(file);
+    }
+  } catch (error) {
+    pdfError = error.message;
+  }
+
+  const allFiles = [
+    ...pdfFiles.map((file) => ({ name: file.name, path: file.path })),
+    ...files.map(([name]) => ({ name, path: path.join(outDir, name) })),
+  ];
+
   return {
     number: app.number,
     company: app.company,
     role: app.role,
     outputDir: outDir,
     publicBase: `/application-packages/${folderName}`,
-    files: files.map(([name]) => ({
-      name,
-      href: `/application-packages/${folderName}/${name}`,
-      path: path.join(outDir, name),
+    pdfError,
+    files: allFiles.map((file) => ({
+      name: file.name,
+      href: `/application-packages/${folderName}/${file.name}`,
+      path: file.path,
     })),
   };
 }

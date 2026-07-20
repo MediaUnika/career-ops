@@ -31,7 +31,8 @@ function splitRow(line) {
 
 function section(markdown, title) {
   const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |\\n---|$)`, "m");
+  // No `m` flag: with multiline, `$` matches end-of-LINE and truncates the section to one line.
+  const re = new RegExp(`(?:^|\\n)## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |\\n---|$)`);
   const match = markdown.match(re);
   return match ? match[1].trim() : "";
 }
