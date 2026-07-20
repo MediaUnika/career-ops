@@ -75,6 +75,14 @@ function sourceFromUrl(url) {
   }
 }
 
+function isScannerBackedSource(entry) {
+  const provider = repairText(entry.provider || entry.scan_method || "").toLowerCase();
+  const url = repairText(entry.careers_url || "").toLowerCase();
+  if (provider === "search") return true;
+  if (provider && provider !== "manual" && provider !== "search") return true;
+  return /ashbyhq\.com|greenhouse\.io|lever\.co|thehub\.io|arbetsformedlingen/i.test(url);
+}
+
 function parsePendingLine(line, index) {
   const raw = repairText(line.replace(/^- \[ \]\s*/, "").trim());
   const parts = raw.split("|").map((part) => repairText(part.trim())).filter(Boolean);
@@ -210,6 +218,7 @@ function readSources() {
     name: repairText(entry.name || entry.careers_url || entry.provider || "Unnamed source"),
     provider: repairText(entry.provider || entry.scan_method || "auto"),
     enabled: entry.enabled !== false,
+    scanCapable: isScannerBackedSource(entry),
     url: entry.careers_url || "",
     queries: (entry.queries || []).map(repairText),
   }));
@@ -218,6 +227,7 @@ function readSources() {
     name: repairText(entry.name || entry.query || "Search query"),
     provider: "search",
     enabled: entry.enabled !== false,
+    scanCapable: true,
     url: "",
     query: repairText(entry.query || ""),
   }));
@@ -269,6 +279,9 @@ function readSources() {
     total: tracked.length + searches.length + pipelineBoards.length,
     enabled: [...tracked, ...searches, ...pipelineBoards].filter((source) => source.enabled).length,
     scanHistoryRows: historyRows.length,
+    scannable: [...tracked, ...searches].filter((source) => source.scanCapable).length,
+    scannableEnabled: [...tracked, ...searches].filter((source) => source.enabled && source.scanCapable).length,
+    watchlistOnly: tracked.filter((source) => !source.scanCapable).length + pipelineBoards.length,
     bySource: Object.fromEntries(bySource),
   };
 }

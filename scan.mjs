@@ -93,6 +93,11 @@ function resolveProvider(entry, providers, { skipIds = [] } = {}) {
     return { provider: p };
   }
 
+  if (entry.scan_method) {
+    const p = providers.get(entry.scan_method);
+    if (p) return { provider: p };
+  }
+
   const localParser = providers.get('local-parser');
   if (localParser && !skipIds.includes('local-parser')) {
     try {
@@ -396,7 +401,16 @@ export async function main(argsOverride = null) {
   }
 
   const config = parseYaml(readFileSync(PORTALS_PATH, 'utf-8'));
-  const companies = config.tracked_companies || [];
+  const companies = [
+    ...(config.tracked_companies || []),
+    ...(config.search_queries || []).map(q => ({
+      name: q.name,
+      query: q.query,
+      provider: 'search',
+      enabled: q.enabled,
+      max_jobs: q.max_jobs || 25,
+    })),
+  ];
   const titleFilter = buildTitleFilter(config.title_filter);
   const locationFilter = buildLocationFilter(config.location_filter);
 

@@ -63,6 +63,34 @@ function markdownSection(markdown, title) {
   return markdown.match(new RegExp(`## ${escaped}\\s+([\\s\\S]*?)(?=\\n## |$)`, "m"))?.[1]?.trim() || "";
 }
 
+function markdownSectionsByPrefix(markdown, titlePrefix) {
+  const sections = [];
+  const headings = [...markdown.matchAll(/^##\s+(.+)$/gm)];
+  for (let i = 0; i < headings.length; i += 1) {
+    const heading = clean(headings[i][1]);
+    if (!heading.toLowerCase().startsWith(titlePrefix.toLowerCase())) continue;
+    const start = headings[i].index + headings[i][0].length;
+    const end = headings[i + 1]?.index ?? markdown.length;
+    sections.push(markdown.slice(start, end).trim());
+  }
+  return sections;
+}
+
+function experienceBlocksFrom(markdown) {
+  const sections = markdownSectionsByPrefix(markdown, "Experience");
+  const blocks = [];
+  for (const section of sections) {
+    const headings = [...section.matchAll(/^###\s+(.+)$/gm)];
+    for (let i = 0; i < headings.length; i += 1) {
+      const start = headings[i].index;
+      const end = headings[i + 1]?.index ?? section.length;
+      const block = section.slice(start, end).trim();
+      if (block) blocks.push(block);
+    }
+  }
+  return blocks;
+}
+
 function loadProfile() {
   const profilePath = path.join(root, "config", "profile.yml");
   if (!fs.existsSync(profilePath)) return {};
@@ -74,9 +102,29 @@ function loadCv() {
   return fs.existsSync(cvPath) ? repairText(fs.readFileSync(cvPath, "utf8")) : "";
 }
 
+function loadArticleDigest() {
+  const digestPath = path.join(root, "article-digest.md");
+  return fs.existsSync(digestPath) ? repairText(fs.readFileSync(digestPath, "utf8")) : "";
+}
+
+function proofPointsFromDigest(markdown) {
+  return markdown
+    .split(/\r?\n/)
+    .filter((line) => /^\|[^|]+\|[^|]+\|[^|]+\|/.test(line))
+    .filter((line) => !/Proof point|---/.test(line))
+    .map((line) => line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((part) => clean(part.replace(/\*\*/g, ""))))
+    .filter((parts) => parts.length >= 3 && parts[0] && parts[1])
+    .map(([proof, metric, useFor]) => ({ proof, metric, useFor }));
+}
+
 function candidateContext() {
   const profile = loadProfile();
   const cv = loadCv();
+  const articleDigest = loadArticleDigest();
   const candidate = profile.candidate || {};
   const narrative = profile.narrative || {};
   const name = clean(candidate.full_name || cv.match(/^#\s+(.+)$/m)?.[1] || "Candidate");
@@ -92,17 +140,10 @@ function candidateContext() {
     .filter(Boolean);
   const education = markdownSection(cv, "Education");
   const languages = markdownSection(cv, "Languages");
-  const experience = [
-    markdownSection(cv, "Experience — Brand, Creative & Marketing"),
-    markdownSection(cv, "Experience - Brand, Creative & Marketing"),
-    markdownSection(cv, "Experience"),
-  ].find(Boolean) || "";
-  const experienceBlocks = experience
-    .split(/\n(?=### )/)
-    .map((block) => block.trim())
-    .filter(Boolean);
+  const experienceBlocks = experienceBlocksFrom(cv);
+  const proofPoints = proofPointsFromDigest(articleDigest);
 
-  return { name, headline, location, linkedin, portfolio, summary, superpowers, competencies, education, languages, experienceBlocks };
+  return { name, headline, location, linkedin, portfolio, summary, superpowers, competencies, education, languages, experienceBlocks, proofPoints };
 }
 
 function keywordsFrom(report, app) {
@@ -144,10 +185,50 @@ function relevantExperienceBlocks(ctx, emphasis) {
     .map((item) => item.block);
 }
 
+function conciseExperienceBlock(block, terms) {
+  const lines = block.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const heading = lines.find((line) => line.startsWith("### ")) || lines[0] || "";
+  const meta = lines.find((line) => /^\*.+\*$/.test(line)) || "";
+  const intro = lines.find((line) => !line.startsWith("### ") && !line.startsWith("- ") && !/^\*.+\*$/.test(line)) || "";
+  const bullets = lines
+    .filter((line) => line.startsWith("- "))
+    .map((line, index) => {
+      const lower = line.toLowerCase();
+      const score = terms.reduce((sum, term) => sum + (lower.includes(term) ? 1 : 0), 0);
+      const metricBoost = /\d|%|us\$|award|winner|finalist|million|m\+|\+/.test(lower) ? 2 : 0;
+      return { line, index, score: score + metricBoost };
+    })
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 4)
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.line);
+  return [heading, meta, intro, ...bullets].filter(Boolean).join("\n");
+}
+
+function relevantProofPoints(ctx, terms) {
+  return (ctx.proofPoints || [])
+    .map((point, index) => {
+      const text = `${point.proof} ${point.metric} ${point.useFor}`.toLowerCase();
+      const score = terms.reduce((sum, term) => sum + (text.includes(term) ? 1 : 0), 0);
+      return { point, index, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, 5)
+    .map(({ point }) => `- **${point.proof}:** ${point.metric}`);
+}
+
 function tailoredCv(app, report, keywords, emphasis, ctx) {
   const core = [...ctx.superpowers, ...ctx.competencies].filter(Boolean);
   const uniqueCore = [...new Set(core)].slice(0, 10);
-  const experience = relevantExperienceBlocks(ctx, emphasis);
+  const terms = [...emphasis, ...keywords, "creative", "brand", "storytelling", "campaign", "concept", "leadership", "content", "social"]
+    .join(" ")
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((term) => term.length > 3);
+  const experience = relevantExperienceBlocks(ctx, emphasis)
+    .map((block) => conciseExperienceBlock(block, terms));
+  const proofPoints = relevantProofPoints(ctx, terms);
 
   return `# ${ctx.name}
 
@@ -167,6 +248,7 @@ ${ctx.summary || `Award-winning creative leader with role-relevant strengths acr
 
 ${keywords.map((keyword) => `- ${keyword}`).join("\n")}
 
+${proofPoints.length ? `## Selected Proof Points For This Role\n\n${proofPoints.join("\n")}\n` : ""}
 ## Core Competencies For This Role
 
 ${uniqueCore.map((item) => `- ${item}`).join("\n") || "- Creative direction\n- Brand strategy\n- Content production"}

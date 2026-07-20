@@ -323,7 +323,7 @@ function BriefWorkspace({ data, setSection }) {
       <section className="briefMetrics" aria-label="Hunt metrics">
         <Metric icon={<Target />} label="Strong roles" value={applications.filter((app) => (app.score || 0) >= 4).length} />
         <Metric icon={<FileText />} label="Ready packages" value={readyPackages.length} />
-        <Metric icon={<LayoutList />} label="Live sources" value={data.sources?.enabled || 0} />
+        <Metric icon={<LayoutList />} label="Scanner-backed" value={data.sources?.scannableEnabled || data.sources?.enabled || 0} />
         <Metric icon={<CheckCircle2 />} label="Applied rate" value={`${conversion}%`} />
       </section>
 
@@ -511,7 +511,7 @@ function SourcesWorkspace({ data, onDataReload }) {
       </header>
 
       <section className="metrics" aria-label="Source metrics">
-        <Metric icon={<RefreshCw />} label="Enabled sources" value={data.sources?.enabled || 0} />
+        <Metric icon={<RefreshCw />} label="Scanner-backed" value={data.sources?.scannableEnabled || 0} />
         <Metric icon={<LayoutList />} label="Raw leads" value={data.sources?.scanHistoryRows || 0} />
         <Metric icon={<BriefcaseBusiness />} label="Pipeline" value={data.summary.pipelineTotal || 0} />
         <Metric icon={<Archive />} label="Scan log" value={data.sources?.scanHistoryRows || 0} />
